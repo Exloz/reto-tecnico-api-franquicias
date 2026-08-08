@@ -49,6 +49,7 @@ class FullStackApiIntegrationTest {
         registry.add("adapters.r2dbc.schema", () -> "franchise");
         registry.add("adapters.r2dbc.username", () -> "franchise_app");
         registry.add("adapters.r2dbc.password", () -> "franchise_app");
+        registry.add("adapters.r2dbc.ssl-mode", () -> "DISABLE");
         registry.add("adapters.r2dbc.initial-size", () -> 0);
         registry.add("adapters.r2dbc.max-size", () -> 4);
         registry.add("adapters.r2dbc.max-idle-time", () -> "1m");

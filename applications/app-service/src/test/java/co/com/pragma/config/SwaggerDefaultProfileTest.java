@@ -17,6 +17,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
                 "adapters.r2dbc.schema=franchise",
                 "adapters.r2dbc.username=franchise_app",
                 "adapters.r2dbc.password=franchise_app",
+                "adapters.r2dbc.ssl-mode=DISABLE",
                 "adapters.r2dbc.initial-size=0",
                 "adapters.r2dbc.max-size=2",
                 "adapters.r2dbc.max-idle-time=1m"
