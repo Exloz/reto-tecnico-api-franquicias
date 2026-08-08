@@ -13,6 +13,7 @@ dependencies {
     runtimeOnly('org.springframework.boot:spring-boot-devtools')
     testImplementation 'com.tngtech.archunit:archunit:1.4.2'
     testImplementation 'tools.jackson.core:jackson-databind'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
 }
 
 tasks.register('explodedJar', Copy) {
