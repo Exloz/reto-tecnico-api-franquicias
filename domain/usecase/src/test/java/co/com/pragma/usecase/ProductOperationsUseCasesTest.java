@@ -4,9 +4,11 @@ import co.com.pragma.model.branches.Branch;
 import co.com.pragma.model.branches.gateways.BranchRepository;
 import co.com.pragma.model.branchproducts.BranchProduct;
 import co.com.pragma.model.branchproducts.BranchTopStock;
+import co.com.pragma.model.branchproducts.TopStockPage;
 import co.com.pragma.model.branchproducts.gateways.BranchProductRepository;
 import co.com.pragma.model.branchproducts.gateways.TopStockQueryRepository;
 import co.com.pragma.model.common.exception.InvalidStockException;
+import co.com.pragma.model.common.exception.InvalidPageSizeException;
 import co.com.pragma.model.common.exception.ResourceNotFoundException;
 import co.com.pragma.model.common.exception.VersionConflictException;
 import co.com.pragma.model.franchises.Franchise;
@@ -31,6 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -67,13 +71,13 @@ class ProductOperationsUseCasesTest {
         BranchProduct current = product(20, 3);
         when(branchRepository.findByIdAndFranchiseId(BRANCH_ID, FRANCHISE_ID)).thenReturn(Mono.just(branch()));
         when(productRepository.findActiveByIdAndBranchId(PRODUCT_ID, BRANCH_ID)).thenReturn(Mono.just(current));
-        when(productRepository.softDelete(any(BranchProduct.class))).thenReturn(Mono.empty());
+        when(productRepository.softDelete(any(BranchProduct.class), eq(3L))).thenReturn(Mono.empty());
 
-        StepVerifier.create(deleteProduct.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID))
+        StepVerifier.create(deleteProduct.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, 3))
                 .verifyComplete();
 
         ArgumentCaptor<BranchProduct> captor = ArgumentCaptor.forClass(BranchProduct.class);
-        verify(productRepository).softDelete(captor.capture());
+        verify(productRepository).softDelete(captor.capture(), eq(3L));
         BranchProduct deleted = captor.getValue();
         assertEquals(4, deleted.getVersion());
         assertNotNull(deleted.getDeletedAt());
@@ -85,11 +89,24 @@ class ProductOperationsUseCasesTest {
         when(branchRepository.findByIdAndFranchiseId(BRANCH_ID, FRANCHISE_ID)).thenReturn(Mono.just(branch()));
         when(productRepository.findActiveByIdAndBranchId(PRODUCT_ID, BRANCH_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(deleteProduct.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID))
+        StepVerifier.create(deleteProduct.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, 3))
                 .expectError(ResourceNotFoundException.class)
                 .verify();
 
-        verify(productRepository, never()).softDelete(any());
+        verify(productRepository, never()).softDelete(any(), anyLong());
+    }
+
+    @Test
+    void shouldRejectStaleDeleteVersionWithoutWriting() {
+        when(branchRepository.findByIdAndFranchiseId(BRANCH_ID, FRANCHISE_ID)).thenReturn(Mono.just(branch()));
+        when(productRepository.findActiveByIdAndBranchId(PRODUCT_ID, BRANCH_ID))
+                .thenReturn(Mono.just(product(20, 4)));
+
+        StepVerifier.create(deleteProduct.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, 3))
+                .expectError(VersionConflictException.class)
+                .verify();
+
+        verify(productRepository, never()).softDelete(any(), anyLong());
     }
 
     @Test
@@ -135,7 +152,7 @@ class ProductOperationsUseCasesTest {
     void shouldValidateFranchiseBeforeReturningTopStock() {
         when(franchiseRepository.findById(FRANCHISE_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(findTopStock.execute(FRANCHISE_ID))
+        StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 50))
                 .expectError(ResourceNotFoundException.class)
                 .verify();
 
@@ -144,15 +161,45 @@ class ProductOperationsUseCasesTest {
 
     @Test
     void shouldReturnOrderedTopStockProjectionFromQueryPort() {
-        BranchTopStock emptyBranch = new BranchTopStock(UUID.randomUUID(), "A Branch", null);
-        BranchTopStock stockedBranch = new BranchTopStock(BRANCH_ID, "B Branch", product(9, 1));
+        BranchTopStock emptyBranch = new BranchTopStock(UUID.randomUUID(), "A Branch", "a branch", null);
+        BranchTopStock stockedBranch = new BranchTopStock(BRANCH_ID, "B Branch", "b branch", product(9, 1));
         when(franchiseRepository.findById(FRANCHISE_ID)).thenReturn(Mono.just(franchise()));
-        when(topStockQueryRepository.findTopActiveProductPerBranchOrdered(FRANCHISE_ID))
+        when(topStockQueryRepository.findTopActiveProductPerBranchOrdered(FRANCHISE_ID, null, 3))
                 .thenReturn(Flux.just(emptyBranch, stockedBranch));
 
-        StepVerifier.create(findTopStock.execute(FRANCHISE_ID))
-                .expectNext(emptyBranch, stockedBranch)
+        StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 2))
+                .assertNext(page -> {
+                    assertEquals(java.util.List.of(emptyBranch, stockedBranch), page.items());
+                    assertNull(page.nextCursor());
+                })
                 .verifyComplete();
+    }
+
+    @Test
+    void shouldReturnBoundedPageAndNextCursor() {
+        BranchTopStock first = new BranchTopStock(UUID.randomUUID(), "A", "a", null);
+        BranchTopStock second = new BranchTopStock(BRANCH_ID, "B", "b", product(9, 1));
+        BranchTopStock extra = new BranchTopStock(UUID.randomUUID(), "C", "c", null);
+        when(franchiseRepository.findById(FRANCHISE_ID)).thenReturn(Mono.just(franchise()));
+        when(topStockQueryRepository.findTopActiveProductPerBranchOrdered(FRANCHISE_ID, null, 3))
+                .thenReturn(Flux.just(first, second, extra));
+
+        StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 2))
+                .assertNext(page -> {
+                    assertEquals(java.util.List.of(first, second), page.items());
+                    assertEquals("b", page.nextCursor().branchNormalizedName());
+                    assertEquals(BRANCH_ID, page.nextCursor().branchId());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void shouldRejectPageLimitOutsideBounds() {
+        StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 101))
+                .expectError(InvalidPageSizeException.class)
+                .verify();
+
+        verifyNoInteractions(franchiseRepository, topStockQueryRepository);
     }
 
     private Franchise franchise() {

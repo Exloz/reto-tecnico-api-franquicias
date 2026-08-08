@@ -14,5 +14,5 @@ public interface BranchProductRepository {
 
     Mono<BranchProduct> updateStock(BranchProduct product, long expectedVersion);
 
-    Mono<Void> softDelete(BranchProduct product);
+    Mono<Void> softDelete(BranchProduct product, long expectedVersion);
 }
