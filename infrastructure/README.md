@@ -26,7 +26,7 @@ terraform -chdir=infrastructure/environments/prod validate
 
 Run `terraform fmt -recursive infrastructure` before validation.
 
-Trivy ignores `AVD-AWS-0132` because the state bucket deliberately uses the selected SSE-S3 encryption model instead of a customer-managed KMS key.
+Trivy ignores `AVD-AWS-0132` because the state bucket deliberately uses the selected SSE-S3 encryption model instead of a customer-managed KMS key. It ignores `AWS-0104` because private ECS tasks require outbound HTTPS through the NAT Gateway for AWS public endpoints while cost-driven environments defer interface VPC endpoints.
 
 ## Development
 
