@@ -45,3 +45,24 @@ Los entry points representan los puntos de entrada de la aplicación o el inicio
 Este módulo es el más externo de la arquitectura, es el encargado de ensamblar los distintos módulos, resolver las dependencias y crear los beans de los casos de use (UseCases) de forma automática, inyectando en éstos instancias concretas de las dependencias declaradas. Además inicia la aplicación (es el único módulo del proyecto donde encontraremos la función “public static void main(String[] args)”.
 
 **Los beans de los casos de uso se disponibilizan automaticamente gracias a un '@ComponentScan' ubicado en esta capa.**
+
+## Calidad
+
+- Suite completa con JaCoCo y PIT por módulo: `./gradlew test`.
+- Arquitectura, cobertura y reporte JaCoCo: `./gradlew qualityGate jacocoMergedReport`.
+- Mutation testing y reporte PIT agregado: `./gradlew pitestReportAggregate`.
+- Carga local, con la API disponible: `BASE_URL=http://localhost:8080 k6 run load-tests/franchise-api.js`.
+
+Las pruebas de integración usan PostgreSQL 17.6 mediante Testcontainers y requieren Docker. Los reportes agregados quedan en `build/reports/jacocoMergedReport/` y `build/reports/pitest/`.
+
+## Desarrollo Local
+
+- Levantar PostgreSQL, ejecutar migraciones y arrancar la API: `docker-compose up --build -d api`.
+- Consultar el estado: `docker-compose ps`.
+- Seguir los logs: `docker-compose logs -f api`.
+- Ejecutar un smoke de carga: `K6_VUS=1 K6_DURATION=10s docker-compose run --rm k6`.
+- Ejecutar la carga completa: `docker-compose run --rm k6`.
+- Detener los servicios conservando datos: `docker-compose down`.
+- Detener y eliminar también la base local: `docker-compose down -v`.
+
+La API queda disponible en `http://localhost:8080`. `API_PORT` y `POSTGRES_PORT` permiten cambiar los puertos publicados; k6 usa 20 VUs durante 2 minutos por defecto. En instalaciones con el plugin Compose integrado, los mismos comandos aceptan `docker compose` en lugar de `docker-compose`.
