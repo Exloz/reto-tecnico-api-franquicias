@@ -341,6 +341,7 @@ docs.local
 
 # Terraform local state and generated files
 .terraform/
+infrastructure/modules/**/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfplan
