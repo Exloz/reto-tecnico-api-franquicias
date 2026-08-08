@@ -18,6 +18,8 @@ adapters:
     schema: "franchise"
     username: "${DB_USERNAME:franchise_app}"
     password: "${DB_PASSWORD:franchise_app}"
+    ssl-mode: "${DB_SSL_MODE:DISABLE}"
+    ssl-root-cert: "${DB_SSL_ROOT_CERT:}"
     initial-size: 0
     max-size: "${DB_POOL_MAX_SIZE:15}"
     max-idle-time: "30m"

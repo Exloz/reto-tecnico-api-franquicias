@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.env.Environment;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +42,9 @@ class PersistenceContextTest {
     @Autowired
     private ApplicationContext applicationContext;
 
+    @Autowired
+    private Environment environment;
+
     @Test
     void wiresPersistenceBeans() throws ClassNotFoundException {
         assertNotNull(franchiseRepository);
@@ -50,5 +55,7 @@ class PersistenceContextTest {
                 Class.forName("org.springframework.r2dbc.core.DatabaseClient")).length > 0);
         assertTrue(applicationContext.getBeanNamesForType(
                 Class.forName("org.springframework.transaction.reactive.TransactionalOperator")).length > 0);
+        assertEquals("DISABLE", environment.getProperty("adapters.r2dbc.ssl-mode"));
+        assertEquals("", environment.getProperty("adapters.r2dbc.ssl-root-cert"));
     }
 }

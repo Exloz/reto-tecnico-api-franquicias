@@ -11,19 +11,27 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Optional;
+
 @Configuration
 public class PostgreSQLConnectionPool {
 
     @Bean
     public ConnectionPool connectionPool(PostgresqlConnectionProperties properties) {
-        PostgresqlConnectionConfiguration dbConfiguration = PostgresqlConnectionConfiguration.builder()
+        PostgresqlConnectionConfiguration.Builder dbConfigurationBuilder = PostgresqlConnectionConfiguration.builder()
                 .host(properties.host())
                 .port(properties.port())
                 .database(properties.database())
                 .schema(properties.schema())
                 .username(properties.username())
                 .password(properties.password())
-                .build();
+                .sslMode(properties.sslMode());
+
+        Optional.ofNullable(properties.sslRootCert())
+                .filter(rootCertificate -> !rootCertificate.isBlank())
+                .ifPresent(dbConfigurationBuilder::sslRootCert);
+
+        PostgresqlConnectionConfiguration dbConfiguration = dbConfigurationBuilder.build();
 
         ConnectionPoolConfiguration poolConfiguration = ConnectionPoolConfiguration.builder()
                 .connectionFactory(new PostgresqlConnectionFactory(dbConfiguration))
