@@ -335,3 +335,6 @@ gradle-app.setting
 *.hprof
 build-cache
 AGENTS.md
+
+
+docs.local
