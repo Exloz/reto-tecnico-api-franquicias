@@ -8,6 +8,8 @@ import co.com.pragma.model.common.exception.InvalidStockException;
 import co.com.pragma.model.common.exception.InvalidVersionException;
 import co.com.pragma.model.common.exception.ResourceNotFoundException;
 import co.com.pragma.model.common.exception.VersionConflictException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,6 +32,7 @@ import java.util.Optional;
 @Component
 @Order(-2)
 public class GlobalExceptionHandler implements WebExceptionHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final MediaType PROBLEM_JSON = MediaType.parseMediaType("application/problem+json");
     private static final String PROBLEM_PREFIX = "urn:franchise-api:problem:";
     private static final ErrorDescriptor INTERNAL = new ErrorDescriptor(
@@ -90,10 +93,13 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
                 Optional.ofNullable(exchange.getAttribute(CorrelationIdFilter.ATTRIBUTE_NAME))
                         .map(Object::toString)
                         .orElseGet(CorrelationIdFilter::newCorrelationId));
-        return ServerResponse.status(descriptor.status())
-                .contentType(PROBLEM_JSON)
-                .bodyValue(problem)
-                .flatMap(response -> response.writeTo(exchange, responseContext()));
+        return Mono.just(descriptor)
+                .filter(INTERNAL::equals)
+                .doOnNext(ignored -> LOGGER.error("Unhandled request failure", error))
+                .then(ServerResponse.status(descriptor.status())
+                        .contentType(PROBLEM_JSON)
+                        .bodyValue(problem)
+                        .flatMap(response -> response.writeTo(exchange, responseContext())));
     }
 
     private Mono<ErrorDescriptor> describe(Throwable error) {
