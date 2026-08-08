@@ -1,37 +1,30 @@
 package co.com.pragma.r2dbc.config;
 
-import org.junit.jupiter.api.BeforeEach;
+import io.r2dbc.pool.ConnectionPool;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+
+import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.when;
 
 class PostgreSQLConnectionPoolTest {
 
-    @InjectMocks
-    private PostgreSQLConnectionPool connectionPool;
-
-    @Mock
-    private PostgresqlConnectionProperties properties;
-
-
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-
-        when(properties.host()).thenReturn("localhost");
-        when(properties.port()).thenReturn(5432);
-        when(properties.database()).thenReturn("dbName");
-        when(properties.schema()).thenReturn("schema");
-        when(properties.username()).thenReturn("username");
-        when(properties.password()).thenReturn("password");
-    }
-
     @Test
-    void getConnectionConfigSuccess() {
-        assertNotNull(connectionPool.getConnectionConfig(properties));
+    void createsConfiguredConnectionPool() {
+        PostgresqlConnectionProperties properties = new PostgresqlConnectionProperties(
+                "localhost",
+                5432,
+                "franchise",
+                "franchise",
+                "franchise_app",
+                "secret",
+                0,
+                7,
+                Duration.ofMinutes(15));
+
+        ConnectionPool pool = new PostgreSQLConnectionPool().connectionPool(properties);
+
+        assertNotNull(pool);
+        pool.dispose();
     }
 }

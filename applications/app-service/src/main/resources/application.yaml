@@ -5,12 +5,19 @@ spring:
     name: "ApiFranchise"
   devtools:
     add-properties: false
-  h2:
-    console:
-      enabled: true
-      path: "/h2"
   profiles:
     include: null
+adapters:
+  r2dbc:
+    host: "${DB_HOST:localhost}"
+    port: "${DB_PORT:5432}"
+    database: "${DB_NAME:franchise}"
+    schema: "franchise"
+    username: "${DB_USERNAME:franchise_app}"
+    password: "${DB_PASSWORD:franchise_app}"
+    initial-size: 0
+    max-size: "${DB_POOL_MAX_SIZE:15}"
+    max-idle-time: "30m"
 aws:
   region: "us-east-1"
   secretName: "my-secret"
