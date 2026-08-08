@@ -115,6 +115,45 @@ class PostgresqlAdaptersIntegrationTest {
     }
 
     @Test
+    void serializesConcurrentDuplicateNamesAtEveryScope() {
+        Franchise firstFranchise = franchise(UUID.randomUUID(), "Ácme", "acme");
+        Franchise secondFranchise = franchise(UUID.randomUUID(), "ACME", "acme");
+
+        StepVerifier.create(Flux.mergeDelayError(
+                                2,
+                                franchiseAdapter.create(firstFranchise),
+                                franchiseAdapter.create(secondFranchise))
+                        .materialize())
+                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getNormalizedName().equals("acme"))
+                .assertNext(signal -> assertInstanceOf(DuplicateNameException.class, signal.getThrowable()))
+                .verifyComplete();
+
+        Franchise branchParent = franchise(UUID.randomUUID(), "Branch Parent", "branch parent");
+        Branch firstBranch = branch(UUID.randomUUID(), branchParent.getId(), "Central", "central");
+        Branch secondBranch = branch(UUID.randomUUID(), branchParent.getId(), "CENTRAL", "central");
+        StepVerifier.create(franchiseAdapter.create(branchParent).thenMany(Flux.mergeDelayError(
+                                        2,
+                                        branchAdapter.create(firstBranch),
+                                        branchAdapter.create(secondBranch))
+                                .materialize()))
+                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getNormalizedName().equals("central"))
+                .assertNext(signal -> assertInstanceOf(DuplicateNameException.class, signal.getThrowable()))
+                .verifyComplete();
+
+        Branch productParent = branch(UUID.randomUUID(), branchParent.getId(), "Product Parent", "product parent");
+        BranchProduct firstProduct = product(UUID.randomUUID(), productParent.getId(), "Phone", "phone", 1);
+        BranchProduct secondProduct = product(UUID.randomUUID(), productParent.getId(), "PHONE", "phone", 2);
+        StepVerifier.create(branchAdapter.create(productParent).thenMany(Flux.mergeDelayError(
+                                        2,
+                                        productAdapter.create(firstProduct),
+                                        productAdapter.create(secondProduct))
+                                .materialize()))
+                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getNormalizedName().equals("phone"))
+                .assertNext(signal -> assertInstanceOf(DuplicateNameException.class, signal.getThrowable()))
+                .verifyComplete();
+    }
+
+    @Test
     void detectsConcurrentVersionUpdates() {
         Franchise franchise = franchise(UUID.randomUUID(), "Acme", "acme");
         Franchise firstRename = franchise.toBuilder()
@@ -163,6 +202,88 @@ class PostgresqlAdaptersIntegrationTest {
     }
 
     @Test
+    void renamesBranchesAndProductsWithAtomicVersionChecks() {
+        Franchise franchise = franchise(UUID.randomUUID(), "Acme", "acme");
+        Branch branch = branch(UUID.randomUUID(), franchise.getId(), "Central", "central");
+        Branch occupiedBranch = branch(UUID.randomUUID(), franchise.getId(), "Occupied", "occupied");
+        BranchProduct product = product(UUID.randomUUID(), branch.getId(), "Phone", "phone", 5);
+        BranchProduct occupiedProduct = product(UUID.randomUUID(), branch.getId(), "Occupied", "occupied", 7);
+        Branch renamedBranch = branch.toBuilder()
+                .name("North")
+                .normalizedName("north")
+                .version(1)
+                .updatedAt(Instant.now())
+                .build();
+        BranchProduct renamedProduct = product.toBuilder()
+                .name("Tablet")
+                .normalizedName("tablet")
+                .version(1)
+                .updatedAt(Instant.now())
+                .build();
+
+        StepVerifier.create(franchiseAdapter.create(franchise)
+                        .then(branchAdapter.create(branch))
+                        .then(branchAdapter.create(occupiedBranch))
+                        .then(productAdapter.create(product))
+                        .then(productAdapter.create(occupiedProduct))
+                        .then(branchAdapter.rename(renamedBranch, 0)))
+                .assertNext(renamed -> {
+                    assertEquals("North", renamed.getName());
+                    assertEquals(1, renamed.getVersion());
+                })
+                .verifyComplete();
+
+        StepVerifier.create(productAdapter.rename(renamedProduct, 0))
+                .assertNext(renamed -> {
+                    assertEquals("Tablet", renamed.getName());
+                    assertEquals(1, renamed.getVersion());
+                })
+                .verifyComplete();
+
+        StepVerifier.create(branchAdapter.rename(renamedBranch.toBuilder()
+                        .name("Occupied")
+                        .normalizedName("occupied")
+                        .build(), 1))
+                .expectError(DuplicateNameException.class)
+                .verify();
+
+        StepVerifier.create(productAdapter.rename(renamedProduct.toBuilder()
+                        .name("Occupied")
+                        .normalizedName("occupied")
+                        .build(), 1))
+                .expectError(DuplicateNameException.class)
+                .verify();
+
+        StepVerifier.create(branchAdapter.rename(renamedBranch, 0))
+                .expectError(VersionConflictException.class)
+                .verify();
+
+        StepVerifier.create(productAdapter.rename(renamedProduct, 0))
+                .expectError(VersionConflictException.class)
+                .verify();
+
+        Branch missingBranch = branch(UUID.randomUUID(), franchise.getId(), "Missing", "missing");
+        BranchProduct missingProduct = product(UUID.randomUUID(), branch.getId(), "Missing", "missing", 0);
+
+        StepVerifier.create(branchAdapter.rename(missingBranch, 0))
+                .expectError(ResourceNotFoundException.class)
+                .verify();
+
+        StepVerifier.create(productAdapter.rename(missingProduct, 0))
+                .expectError(ResourceNotFoundException.class)
+                .verify();
+    }
+
+    @Test
+    void deniesSchemaChangesToApplicationRole() {
+        StepVerifier.create(databaseClient.sql("CREATE TABLE franchise.forbidden_operation (id UUID)")
+                        .fetch()
+                        .rowsUpdated())
+                .expectErrorMatches(error -> PostgresqlErrorMapper.hasSqlState(error, "42501"))
+                .verify();
+    }
+
+    @Test
     void serializesConcurrentStockUpdates() {
         Franchise franchise = franchise(UUID.randomUUID(), "Acme", "acme");
         Branch branch = branch(UUID.randomUUID(), franchise.getId(), "Central", "central");
@@ -189,6 +310,39 @@ class PostgresqlAdaptersIntegrationTest {
                                 productAdapter.updateStock(secondUpdate, 0)))
                         .materialize())
                 .expectNextMatches(signal -> signal.isOnNext() && signal.get().getVersion() == 1)
+                .assertNext(signal -> assertInstanceOf(VersionConflictException.class, signal.getThrowable()))
+                .verifyComplete();
+    }
+
+    @Test
+    void serializesConcurrentUpdateAndDelete() {
+        Franchise franchise = franchise(UUID.randomUUID(), "Acme", "acme");
+        Branch branch = branch(UUID.randomUUID(), franchise.getId(), "Central", "central");
+        BranchProduct product = product(UUID.randomUUID(), branch.getId(), "Phone", "phone", 1);
+        Instant updateTime = Instant.now();
+        BranchProduct update = product.toBuilder()
+                .stock(10)
+                .version(1)
+                .updatedAt(updateTime)
+                .build();
+        BranchProduct deletion = product.toBuilder()
+                .version(1)
+                .updatedAt(updateTime)
+                .deletedAt(updateTime)
+                .build();
+
+        Mono<Void> setup = franchiseAdapter.create(franchise)
+                .then(branchAdapter.create(branch))
+                .then(productAdapter.create(product))
+                .then();
+
+        StepVerifier.create(setup.thenMany(Flux.mergeDelayError(
+                                2,
+                                productAdapter.updateStock(update, 0).thenReturn("update"),
+                                productAdapter.softDelete(deletion, 0).thenReturn("delete")))
+                        .materialize())
+                .expectNextMatches(signal -> signal.isOnNext()
+                        && (signal.get().equals("update") || signal.get().equals("delete")))
                 .assertNext(signal -> assertInstanceOf(VersionConflictException.class, signal.getThrowable()))
                 .verifyComplete();
     }

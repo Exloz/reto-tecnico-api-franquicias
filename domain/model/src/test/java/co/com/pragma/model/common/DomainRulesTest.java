@@ -26,6 +26,14 @@ class DomainRulesTest {
     }
 
     @Test
+    void shouldAcceptExactNameLimitsAndRejectTheNextCodePoint() {
+        assertEquals(120, DomainRules.normalizeName("f".repeat(120), 120).value().length());
+        assertEquals(160, DomainRules.normalizeName("p".repeat(160), 160).value().length());
+        assertThrows(InvalidNameException.class, () -> DomainRules.normalizeName("f".repeat(121), 120));
+        assertThrows(InvalidNameException.class, () -> DomainRules.normalizeName("p".repeat(161), 160));
+    }
+
+    @Test
     void shouldRejectMissingBlankAndLongNames() {
         assertThrows(InvalidNameException.class, () -> DomainRules.normalizeName(null, 120));
         assertThrows(InvalidNameException.class, () -> DomainRules.normalizeName("   ", 120));

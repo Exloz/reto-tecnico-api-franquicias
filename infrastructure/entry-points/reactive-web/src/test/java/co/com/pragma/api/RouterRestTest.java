@@ -2,6 +2,7 @@ package co.com.pragma.api;
 
 import co.com.pragma.api.config.JsonConfig;
 import co.com.pragma.api.error.GlobalExceptionHandler;
+import co.com.pragma.api.error.ProblemResponse;
 import co.com.pragma.api.filter.CorrelationIdFilter;
 import co.com.pragma.api.pagination.CursorCodec;
 import co.com.pragma.model.branches.Branch;
@@ -32,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -44,6 +46,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @ContextConfiguration(classes = {
         RouterRest.class,
@@ -167,10 +171,12 @@ class RouterRestTest {
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.ETAG, "\"1\"");
         rename("/api/v1/franchises/" + FRANCHISE_ID + "/branches/" + BRANCH_ID)
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.ETAG, "\"1\"");
         rename("/api/v1/franchises/" + FRANCHISE_ID + "/branches/" + BRANCH_ID
                 + "/products/" + PRODUCT_ID)
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.ETAG, "\"1\"");
     }
 
     @Test
@@ -277,14 +283,23 @@ class RouterRestTest {
 
     @Test
     void appliesProblemContractToUnknownRoutes() {
-        webTestClient.get()
+        EntityExchangeResult<ProblemResponse> result = webTestClient.get()
                 .uri("/api/v1/unknown")
+                .header(CorrelationIdFilter.HEADER_NAME, "contract-request")
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectHeader().contentType("application/problem+json")
-                .expectHeader().exists(CorrelationIdFilter.HEADER_NAME)
-                .expectBody()
-                .jsonPath("$.type").isEqualTo("urn:franchise-api:problem:http-404");
+                .expectHeader().valueEquals(CorrelationIdFilter.HEADER_NAME, "contract-request")
+                .expectBody(ProblemResponse.class)
+                .returnResult();
+
+        ProblemResponse problem = result.getResponseBody();
+        assertNotNull(problem);
+        assertEquals("urn:franchise-api:problem:http-404", problem.type().toString());
+        assertEquals("Not Found", problem.title());
+        assertEquals(404, problem.status());
+        assertEquals("contract-request", problem.correlationId());
+        assertEquals("/api/v1/unknown", problem.instance().getPath());
     }
 
     @Test
@@ -314,6 +329,110 @@ class RouterRestTest {
                 .uri("/api/v1/franchises/{franchiseId}/branches/top-stock-products?cursor=invalid", FRANCHISE_ID)
                 .exchange()
                 .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void acceptsPaginationBoundsAndRoundTripsCursor() {
+        CursorCodec cursorCodec = new CursorCodec();
+        TopStockCursor cursor = new TopStockCursor("central", BRANCH_ID);
+        TopStockPage emptyPage = new TopStockPage(List.of(), null);
+        when(findTopStockProductsUseCase.execute(FRANCHISE_ID, null, 1)).thenReturn(Mono.just(emptyPage));
+        when(findTopStockProductsUseCase.execute(FRANCHISE_ID, null, 100)).thenReturn(Mono.just(emptyPage));
+        when(findTopStockProductsUseCase.execute(FRANCHISE_ID, cursor, 50)).thenReturn(Mono.just(emptyPage));
+
+        webTestClient.get()
+                .uri("/api/v1/franchises/{franchiseId}/branches/top-stock-products?limit=1", FRANCHISE_ID)
+                .exchange()
+                .expectStatus().isOk();
+        webTestClient.get()
+                .uri("/api/v1/franchises/{franchiseId}/branches/top-stock-products?limit=100", FRANCHISE_ID)
+                .exchange()
+                .expectStatus().isOk();
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/franchises/{franchiseId}/branches/top-stock-products")
+                        .queryParam("cursor", cursorCodec.encode(cursor))
+                        .build(FRANCHISE_ID))
+                .exchange()
+                .expectStatus().isOk();
+
+        verify(findTopStockProductsUseCase).execute(FRANCHISE_ID, null, 1);
+        verify(findTopStockProductsUseCase).execute(FRANCHISE_ID, null, 100);
+        verify(findTopStockProductsUseCase).execute(FRANCHISE_ID, cursor, 50);
+    }
+
+    @Test
+    void rejectsMalformedBodiesIdentifiersHeadersAndLimits() {
+        webTestClient.post()
+                .uri("/api/v1/franchises")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":")
+                .exchange()
+                .expectStatus().isBadRequest();
+        webTestClient.post()
+                .uri("/api/v1/franchises")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":null}")
+                .exchange()
+                .expectStatus().isBadRequest();
+        webTestClient.post()
+                .uri("/api/v1/franchises")
+                .bodyValue("{\"name\":\"Acme\"}")
+                .exchange()
+                .expectStatus().isBadRequest();
+        webTestClient.post()
+                .uri("/api/v1/franchises/not-a-uuid/branches")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"Central\"}")
+                .exchange()
+                .expectStatus().isBadRequest();
+        webTestClient.patch()
+                .uri("/api/v1/franchises/{franchiseId}", FRANCHISE_ID)
+                .header(HttpHeaders.IF_MATCH, "0")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"New\"}")
+                .exchange()
+                .expectStatus().isBadRequest();
+        webTestClient.patch()
+                .uri("/api/v1/franchises/{franchiseId}", FRANCHISE_ID)
+                .header(HttpHeaders.IF_MATCH, "\"-1\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"New\"}")
+                .exchange()
+                .expectStatus().isBadRequest();
+        webTestClient.patch()
+                .uri("/api/v1/franchises/{franchiseId}", FRANCHISE_ID)
+                .header(HttpHeaders.IF_MATCH, "\"0\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"New\",\"expectedVersion\":0}")
+                .exchange()
+                .expectStatus().isBadRequest();
+
+        for (String limit : List.of("0", "-1", "text", "2147483648")) {
+            webTestClient.get()
+                    .uri("/api/v1/franchises/{franchiseId}/branches/top-stock-products?limit={limit}",
+                            FRANCHISE_ID, limit)
+                    .exchange()
+                    .expectStatus().isBadRequest();
+        }
+    }
+
+    @Test
+    void replacesInvalidCorrelationIdsConsistently() {
+        EntityExchangeResult<ProblemResponse> result = webTestClient.get()
+                .uri("/api/v1/unknown")
+                .header(CorrelationIdFilter.HEADER_NAME, "first", "second")
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody(ProblemResponse.class)
+                .returnResult();
+
+        String header = result.getResponseHeaders().getFirst(CorrelationIdFilter.HEADER_NAME);
+        ProblemResponse problem = result.getResponseBody();
+        assertNotNull(header);
+        assertNotNull(problem);
+        assertEquals(header, problem.correlationId());
+        assertNotNull(UUID.fromString(header));
     }
 
     private WebTestClient.ResponseSpec rename(String uri) {

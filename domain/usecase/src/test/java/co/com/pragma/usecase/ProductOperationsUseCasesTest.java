@@ -195,11 +195,30 @@ class ProductOperationsUseCasesTest {
 
     @Test
     void shouldRejectPageLimitOutsideBounds() {
+        StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 0))
+                .expectError(InvalidPageSizeException.class)
+                .verify();
         StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 101))
                 .expectError(InvalidPageSizeException.class)
                 .verify();
 
         verifyNoInteractions(franchiseRepository, topStockQueryRepository);
+    }
+
+    @Test
+    void shouldAcceptPageLimitBounds() {
+        when(franchiseRepository.findById(FRANCHISE_ID)).thenReturn(Mono.just(franchise()));
+        when(topStockQueryRepository.findTopActiveProductPerBranchOrdered(FRANCHISE_ID, null, 2))
+                .thenReturn(Flux.empty());
+        when(topStockQueryRepository.findTopActiveProductPerBranchOrdered(FRANCHISE_ID, null, 101))
+                .thenReturn(Flux.empty());
+
+        StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 1))
+                .expectNextMatches(page -> page.items().isEmpty())
+                .verifyComplete();
+        StepVerifier.create(findTopStock.execute(FRANCHISE_ID, null, 100))
+                .expectNextMatches(page -> page.items().isEmpty())
+                .verifyComplete();
     }
 
     private Franchise franchise() {

@@ -12,7 +12,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "adapters.r2dbc.host=localhost",
-                "adapters.r2dbc.port=5432",
+                "adapters.r2dbc.port=1",
                 "adapters.r2dbc.database=franchise",
                 "adapters.r2dbc.schema=franchise",
                 "adapters.r2dbc.username=franchise_app",
