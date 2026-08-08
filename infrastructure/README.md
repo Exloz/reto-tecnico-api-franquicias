@@ -2,6 +2,8 @@
 
 Terraform provisions the phase 07 AWS platform in `us-east-1`. Reusable capabilities live under `modules/`; `environments/dev` and `environments/prod` are independent root modules and do not use workspaces.
 
+Operational commands for status checks, AWS k6 tests, private database inspection, pause, destroy and staged recovery are documented in [RUNBOOK.md](RUNBOOK.md).
+
 ## Prerequisites
 
 - Terraform 1.10 or newer.
