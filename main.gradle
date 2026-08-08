@@ -1,4 +1,11 @@
-apply plugin: 'info.solidsoft.pitest.aggregator'
+def mutationThresholds = [
+        model: 85,
+        usecase: 85,
+        'reactive-web': 70,
+        'r2dbc-postgresql': 70,
+        metrics: 60,
+        'app-service': 60
+]
 
 allprojects {
     repositories {
@@ -62,7 +69,7 @@ subprojects {
         pitestVersion = '1.25.4'
         verbose = false
         outputFormats = ['XML', 'HTML']
-        threads = 8
+        threads = project.name == 'r2dbc-postgresql' ? 1 : 8
         exportLineCoverage = true
         useClasspathFile = true
         withHistory = true
@@ -71,7 +78,14 @@ subprojects {
         fileExtensionsToFilter.addAll('xml', 'orbit')
         junit5PluginVersion = '1.2.3'
         failWhenNoMutations = false
-        jvmArgs = ["-XX:+AllowRedefinitionToAddDeleteMethods"]
+        mutationThreshold = mutationThresholds.getOrDefault(project.name, 60)
+        coverageThreshold = mutationThresholds.getOrDefault(project.name, 60)
+        testStrengthThreshold = mutationThresholds.getOrDefault(project.name, 60)
+        jvmArgs = [
+                "-XX:+AllowRedefinitionToAddDeleteMethods",
+                "-Dmigration.path=${rootProject.file('database/migrations').absolutePath}",
+                "-Dproject.rootDir=${rootProject.projectDir.absolutePath}"
+        ]
     }
 
     jacocoTestReport {
@@ -96,12 +110,42 @@ tasks.register('jacocoMergedReport', JacocoReport) {
     additionalSourceDirs.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
     sourceDirectories.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
     classDirectories.setFrom files(subprojects.sourceSets.main.output)
-    executionData.setFrom project.fileTree(dir: '.', include: '**/build/jacoco/test.exec')
+    executionData.setFrom files(subprojects.collect {
+        it.layout.buildDirectory.file('jacoco/test.exec')
+    })
     reports {
         xml.setRequired true
         csv.setRequired false
         html.setRequired true
     }
+}
+
+tasks.register('jacocoMergedCoverageVerification', JacocoCoverageVerification) {
+    dependsOn subprojects.test
+    additionalSourceDirs.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
+    sourceDirectories.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories.setFrom files(subprojects.sourceSets.main.output)
+    executionData.setFrom files(subprojects.collect {
+        it.layout.buildDirectory.file('jacoco/test.exec')
+    })
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.95
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+        }
+    }
+}
+
+tasks.register('qualityGate') {
+    dependsOn validateStructure, jacocoMergedCoverageVerification
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -110,11 +154,15 @@ tasks.withType(JavaCompile).configureEach {
     ]
 }
 
-pitestReportAggregate {
+tasks.register('pitestReportAggregate') {
+    dependsOn subprojects.collect { it.tasks.named('pitest') }
+    notCompatibleWithConfigurationCache('PIT aggregate reads subproject XML reports at execution time')
     def rootReportDir = layout.buildDirectory.dir("reports/pitest")
     def subprojectReports = subprojects.collect { subproject ->
         subproject.layout.buildDirectory.file("reports/pitest/mutations.xml")
     }
+    inputs.files(subprojectReports)
+    outputs.file(rootReportDir.map { it.file("mutations.xml") })
 
     doLast {
         def reportDir = rootReportDir.get().asFile
@@ -133,6 +181,10 @@ pitestReportAggregate {
             writer.write("</mutations>")
         }
     }
+}
+
+tasks.register('qualityReport') {
+    dependsOn jacocoMergedReport, pitestReportAggregate
 }
 
 tasks.named('wrapper') {
