@@ -1,7 +1,7 @@
 enable_environment    = true
 enable_bootstrap_task = false
 enable_migration_task = false
-enable_api_service    = false
+enable_api_service    = true
 enable_ci_identity    = false
 
 api_image_digest       = "sha256:2eb4ac7c53039756248757dd9b324452722493c9221eb731428b3d5eb6e34def"

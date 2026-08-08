@@ -31,12 +31,13 @@ resource "aws_cloudwatch_log_group" "this" {
 resource "aws_lb" "this" {
   count = var.workload_enabled ? 1 : 0
 
-  name               = substr("${var.name_prefix}-alb", 0, 32)
-  internal           = true
-  load_balancer_type = "application"
-  security_groups    = [var.alb_security_group_id]
-  subnets            = var.integration_subnet_ids
-  tags               = var.tags
+  name                       = substr("${var.name_prefix}-alb", 0, 32)
+  internal                   = true
+  load_balancer_type         = "application"
+  drop_invalid_header_fields = true
+  security_groups            = [var.alb_security_group_id]
+  subnets                    = var.integration_subnet_ids
+  tags                       = var.tags
 }
 
 resource "aws_lb_target_group" "this" {
