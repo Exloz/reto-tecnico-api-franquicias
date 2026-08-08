@@ -3,7 +3,7 @@ data "aws_region" "current" {}
 locals {
   alarm_actions        = var.sns_topic_arn == null ? [] : [var.sns_topic_arn]
   load_balancer_suffix = var.alb_arn == null ? null : join("/", slice(split("/", var.alb_arn), 1, 4))
-  target_group_suffix  = var.target_group_arn == null ? null : join("/", slice(split("/", var.target_group_arn), 1, 4))
+  target_group_suffix  = var.target_group_arn == null ? null : join("/", slice(split("/", var.target_group_arn), 1, 3))
 }
 
 resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" {
