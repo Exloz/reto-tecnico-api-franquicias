@@ -1,3 +1,2 @@
 [flyway]
 locations = ["filesystem:/flyway/sql"]
-connectRetries = 10
