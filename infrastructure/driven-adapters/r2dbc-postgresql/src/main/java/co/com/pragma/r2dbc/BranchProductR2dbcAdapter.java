@@ -100,9 +100,8 @@ public class BranchProductR2dbcAdapter implements BranchProductRepository {
     }
 
     @Override
-    public Mono<Void> softDelete(BranchProduct product) {
+    public Mono<Void> softDelete(BranchProduct product, long expectedVersion) {
         BranchProductData data = BranchProductData.from(product);
-        long expectedVersion = data.version() - 1;
         return databaseClient.sql("""
                         UPDATE franchise.branch_products
                         SET deleted_at = :deletedAt,

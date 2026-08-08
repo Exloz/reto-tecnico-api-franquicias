@@ -2,6 +2,7 @@ package co.com.pragma.r2dbc;
 
 import co.com.pragma.model.branches.Branch;
 import co.com.pragma.model.branchproducts.BranchProduct;
+import co.com.pragma.model.branchproducts.TopStockCursor;
 import co.com.pragma.model.common.exception.DuplicateNameException;
 import co.com.pragma.model.common.exception.InvalidStockException;
 import co.com.pragma.model.common.exception.ResourceNotFoundException;
@@ -216,7 +217,7 @@ class PostgresqlAdaptersIntegrationTest {
                 .expectNextMatches(updated -> updated.getVersion() == 1 && updated.getStock() == 6)
                 .verifyComplete();
 
-        StepVerifier.create(productAdapter.softDelete(staleDelete))
+        StepVerifier.create(productAdapter.softDelete(staleDelete, 0))
                 .expectError(VersionConflictException.class)
                 .verify();
 
@@ -228,11 +229,11 @@ class PostgresqlAdaptersIntegrationTest {
                 .build();
         BranchProduct replacement = product(UUID.randomUUID(), branch.getId(), "PHONE", "phone", 7);
 
-        StepVerifier.create(productAdapter.softDelete(deleted).then(productAdapter.create(replacement)))
+        StepVerifier.create(productAdapter.softDelete(deleted, 1).then(productAdapter.create(replacement)))
                 .expectNextMatches(created -> created.getId().equals(replacement.getId()))
                 .verifyComplete();
 
-        StepVerifier.create(productAdapter.softDelete(deleted))
+        StepVerifier.create(productAdapter.softDelete(deleted, 1))
                 .expectError(VersionConflictException.class)
                 .verify();
     }
@@ -259,10 +260,11 @@ class PostgresqlAdaptersIntegrationTest {
                         .version(1)
                         .updatedAt(deletionTime)
                         .deletedAt(deletionTime)
-                        .build()));
+                        .build(), 0));
 
         StepVerifier.create(
-                        setup.thenMany(topStockAdapter.findTopActiveProductPerBranchOrdered(franchise.getId())),
+                        setup.thenMany(topStockAdapter.findTopActiveProductPerBranchOrdered(
+                                franchise.getId(), null, 3)),
                         0)
                 .thenRequest(1)
                 .assertNext(result -> {
@@ -274,6 +276,11 @@ class PostgresqlAdaptersIntegrationTest {
                     assertEquals(zeta.getId(), result.branchId());
                     assertNull(result.product());
                 })
+                .verifyComplete();
+
+        StepVerifier.create(topStockAdapter.findTopActiveProductPerBranchOrdered(
+                        franchise.getId(), new TopStockCursor("alpha", alpha.getId()), 2))
+                .assertNext(result -> assertEquals(zeta.getId(), result.branchId()))
                 .verifyComplete();
     }
 
