@@ -1,0 +1,622 @@
+openapi: 3.1.0
+info:
+  title: Franchise API
+  version: 1.0.0
+  description: Reactive API for managing franchises, branches, products and stock.
+servers:
+  - url: /api/v1
+tags:
+  - name: Franchises
+  - name: Branches
+  - name: Products
+paths:
+  /franchises:
+    post:
+      tags: [Franchises]
+      operationId: createFranchise
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NameRequest'
+      responses:
+        '201':
+          description: Franchise created
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FranchiseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /franchises/{franchiseId}:
+    parameters:
+      - $ref: '#/components/parameters/FranchiseId'
+    patch:
+      tags: [Franchises]
+      operationId: renameFranchise
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NameRequest'
+      responses:
+        '200':
+          description: Franchise renamed
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FranchiseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /franchises/{franchiseId}/branches:
+    parameters:
+      - $ref: '#/components/parameters/FranchiseId'
+    post:
+      tags: [Branches]
+      operationId: addBranch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NameRequest'
+      responses:
+        '201':
+          description: Branch created
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /franchises/{franchiseId}/branches/{branchId}:
+    parameters:
+      - $ref: '#/components/parameters/FranchiseId'
+      - $ref: '#/components/parameters/BranchId'
+    patch:
+      tags: [Branches]
+      operationId: renameBranch
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NameRequest'
+      responses:
+        '200':
+          description: Branch renamed
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /franchises/{franchiseId}/branches/{branchId}/products:
+    parameters:
+      - $ref: '#/components/parameters/FranchiseId'
+      - $ref: '#/components/parameters/BranchId'
+    post:
+      tags: [Products]
+      operationId: addProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: Product created
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /franchises/{franchiseId}/branches/{branchId}/products/{productId}:
+    parameters:
+      - $ref: '#/components/parameters/FranchiseId'
+      - $ref: '#/components/parameters/BranchId'
+      - $ref: '#/components/parameters/ProductId'
+    patch:
+      tags: [Products]
+      operationId: renameProduct
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductNameRequest'
+      responses:
+        '200':
+          description: Product renamed
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Products]
+      operationId: deleteProduct
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Product deleted
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /franchises/{franchiseId}/branches/{branchId}/products/{productId}/stock:
+    parameters:
+      - $ref: '#/components/parameters/FranchiseId'
+      - $ref: '#/components/parameters/BranchId'
+      - $ref: '#/components/parameters/ProductId'
+    patch:
+      tags: [Products]
+      operationId: updateProductStock
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockRequest'
+      responses:
+        '200':
+          description: Product stock updated
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /franchises/{franchiseId}/branches/top-stock-products:
+    parameters:
+      - $ref: '#/components/parameters/FranchiseId'
+    get:
+      tags: [Products]
+      operationId: findTopStockProducts
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque cursor returned by the previous page.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Ordered page with the top active product for each branch
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopStockPageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    FranchiseId:
+      name: franchiseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BranchId:
+      name: branchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^"(0|[1-9][0-9]*)"$'
+      example: '"2"'
+  headers:
+    Location:
+      description: URI of the created resource.
+      schema:
+        type: string
+        format: uri-reference
+    ETag:
+      description: Strong ETag containing the current resource version.
+      schema:
+        type: string
+        pattern: '^"(0|[1-9][0-9]*)"$'
+      example: '"1"'
+    CorrelationId:
+      description: Correlation identifier accepted or generated by the service.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+  responses:
+    BadRequest:
+      description: Malformed or structurally invalid request
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource not found in the requested hierarchy
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Duplicate name or another non-precondition conflict
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: If-Match does not match the current resource version
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Well-formed request violates a domain rule
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionRequired:
+      description: If-Match is required
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: Unexpected internal error
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    NameRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+    CreateProductRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        stock:
+          type: integer
+          minimum: 0
+          default: 0
+    ProductNameRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 160
+    StockRequest:
+      type: object
+      additionalProperties: false
+      required: [stock]
+      properties:
+        stock:
+          type: integer
+          minimum: 0
+    FranchiseResponse:
+      type: object
+      additionalProperties: false
+      required: [id, name, version, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BranchResponse:
+      type: object
+      additionalProperties: false
+      required: [id, franchiseId, name, version, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        franchiseId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProductResponse:
+      type: object
+      additionalProperties: false
+      required: [id, franchiseId, branchId, name, stock, version, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        franchiseId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        stock:
+          type: integer
+          minimum: 0
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TopStockProductResponse:
+      type: object
+      additionalProperties: false
+      required: [id, name, stock]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        stock:
+          type: integer
+          minimum: 0
+    BranchTopStockResponse:
+      type: object
+      additionalProperties: false
+      required: [branchId, branchName, product]
+      properties:
+        branchId:
+          type: string
+          format: uuid
+        branchName:
+          type: string
+        product:
+          oneOf:
+            - $ref: '#/components/schemas/TopStockProductResponse'
+            - type: 'null'
+    TopStockPageResponse:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/BranchTopStockResponse'
+        nextCursor:
+          oneOf:
+            - type: string
+            - type: 'null'
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail, instance, correlationId]
+      properties:
+        type:
+          type: string
+          format: uri
+          pattern: '^urn:franchise-api:problem:'
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        correlationId:
+          type: string
+          minLength: 1
+          maxLength: 128

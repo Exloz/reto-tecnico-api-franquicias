@@ -7,6 +7,9 @@ spring:
     add-properties: false
   profiles:
     include: null
+api:
+  swagger-ui:
+    enabled: false
 adapters:
   r2dbc:
     host: "${DB_HOST:localhost}"
@@ -30,5 +33,11 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        liveness:
+          include: "livenessState"
+        readiness:
+          include: "readinessState,r2dbc"
 cors:
+  enabled: false
   allowed-origins: "http://localhost:4200,http://localhost:8080"
