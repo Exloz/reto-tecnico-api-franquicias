@@ -1,0 +1,6 @@
+api:
+  swagger-ui:
+    enabled: true
+adapters:
+  r2dbc:
+    ssl-mode: "DISABLE"

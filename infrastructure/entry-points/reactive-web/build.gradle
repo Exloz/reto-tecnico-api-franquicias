@@ -1,0 +1,20 @@
+dependencies {
+    implementation project(':usecase')
+    implementation project(':model')
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.webjars:swagger-ui:5.32.11'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
+    testImplementation 'io.swagger.parser.v3:swagger-parser:2.1.46'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+}
+
+processResources {
+    from(rootProject.file('openapi/franchise-api.yaml')) {
+        into 'static/openapi'
+    }
+}
+
+test {
+    systemProperty 'project.rootDir', rootProject.projectDir.absolutePath
+}

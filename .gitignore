@@ -334,3 +334,20 @@ gradle-app.setting
 # -----
 *.hprof
 build-cache
+AGENTS.md
+
+
+docs.local
+
+# Terraform local state and generated files
+.terraform/
+infrastructure/modules/**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
