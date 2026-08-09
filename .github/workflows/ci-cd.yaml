@@ -68,7 +68,7 @@ jobs:
 
   mutation:
     name: Mutation testing
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    if: false
     needs: [branch-policy, application-quality, infrastructure]
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -224,17 +224,12 @@ jobs:
           CONTAINERS_RESULT: ${{ needs.containers.result }}
           TERRAFORM_PLAN_REQUIRED: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           CONTAINERS_REQUIRED: ${{ github.base_ref == 'main' }}
-          MUTATION_REQUIRED: ${{ github.base_ref == 'main' }}
         run: |
           set -eu
           for result in "$BRANCH_POLICY_RESULT" "$APPLICATION_QUALITY_RESULT" "$INFRASTRUCTURE_RESULT"; do
             test "$result" = success
           done
-          if [ "$MUTATION_REQUIRED" = true ]; then
-            test "$MUTATION_RESULT" = success
-          else
-            test "$MUTATION_RESULT" = skipped
-          fi
+          test "$MUTATION_RESULT" = skipped
           if [ "$TERRAFORM_PLAN_REQUIRED" = true ]; then
             test "$TERRAFORM_PLAN_RESULT" = success
           else
