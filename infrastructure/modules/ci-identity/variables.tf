@@ -2,9 +2,8 @@ variable "name_prefix" {
   type = string
 }
 
-variable "github_repository" {
-  type    = string
-  default = "Exloz/api-franquicias"
+variable "github_oidc_subject_prefix" {
+  type = string
 }
 
 variable "create_oidc_provider" {

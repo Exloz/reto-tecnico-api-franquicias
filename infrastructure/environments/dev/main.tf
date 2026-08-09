@@ -156,6 +156,7 @@ module "ci_identity" {
   source = "../../modules/ci-identity"
 
   name_prefix                = "franchise-ci-account"
+  github_oidc_subject_prefix = "repo:Exloz@45303078/api-franquicias@1324521851"
   create_oidc_provider       = var.create_github_oidc_provider
   existing_oidc_provider_arn = var.existing_github_oidc_provider_arn
   state_bucket_name          = "franchise-127321794531-terraform-state"

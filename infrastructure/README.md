@@ -58,10 +58,12 @@ The root composes each repository URL with its digest. Tags such as `latest` are
 
 If the account already has the GitHub Actions OIDC provider, set `create_github_oidc_provider = false` and provide `existing_github_oidc_provider_arn`.
 
-The centralized CI module remains disabled initially through dev `enable_ci_identity = false`. Activate it in this order:
+The centralized CI module starts disabled through dev `enable_ci_identity = false`. Activate it in this order:
 
 1. Apply bootstrap with `enable_ci_identity = true` as the bootstrap administrator. The bucket policy refers to future CI role ARNs through `aws:PrincipalArn` conditions, so those roles do not need to exist yet.
 2. Assume `franchise-terraform-apply` outside Terraform and apply the dev root with `enable_ci_identity = true` to create the single account-level OIDC provider and all five bounded CI roles.
+
+Keep dev `enable_ci_identity = true` after activation so subsequent plans and applies preserve the account-level provider and roles.
 3. Restrict GitHub environment `dev` to protected branch `development` and `prod` to protected branch `main`. Require approval from `Exloz` for `prod`. Each environment can assume only its matching apply and deploy roles; pull requests can assume only the plan role.
 
 The bootstrap root creates separate runtime and CI permissions boundaries. Every project role must carry the matching boundary; both the human Terraform role and environment CI apply roles require the runtime boundary during `CreateRole`. CI cannot change or remove role boundaries. Environment deploy roles can pass and run only their own API, migration and database-bootstrap roles and task families. The PROD deploy role can read deployed DEV images but can write only to PROD repositories.
