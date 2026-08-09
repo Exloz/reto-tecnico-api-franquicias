@@ -163,29 +163,48 @@ module "ci_identity" {
     dev = {
       state_key                  = "dev/infrastructure.tfstate"
       infrastructure_name_prefix = "franchise-dev"
-      ecr_repository_arns = [
+      ecr_pull_repository_arns = [
         "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-api",
-        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-migrations"
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-migrations",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-bootstrap"
+      ]
+      ecr_push_repository_arns = [
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-api",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-migrations",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-bootstrap"
       ]
       ecs_pass_role_arns = [
         "arn:aws:iam::127321794531:role/franchise-dev-api-execution",
         "arn:aws:iam::127321794531:role/franchise-dev-api-task",
         "arn:aws:iam::127321794531:role/franchise-dev-migration-execution",
-        "arn:aws:iam::127321794531:role/franchise-dev-migration-task"
+        "arn:aws:iam::127321794531:role/franchise-dev-migration-task",
+        "arn:aws:iam::127321794531:role/franchise-dev-database-bootstrap-execution",
+        "arn:aws:iam::127321794531:role/franchise-dev-database-bootstrap-task"
       ]
     }
     prod = {
       state_key                  = "prod/infrastructure.tfstate"
       infrastructure_name_prefix = "franchise-prod"
-      ecr_repository_arns = [
+      ecr_pull_repository_arns = [
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-api",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-migrations",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-dev-bootstrap",
         "arn:aws:ecr:us-east-1:127321794531:repository/franchise-prod-api",
-        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-prod-migrations"
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-prod-migrations",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-prod-bootstrap"
+      ]
+      ecr_push_repository_arns = [
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-prod-api",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-prod-migrations",
+        "arn:aws:ecr:us-east-1:127321794531:repository/franchise-prod-bootstrap"
       ]
       ecs_pass_role_arns = [
         "arn:aws:iam::127321794531:role/franchise-prod-api-execution",
         "arn:aws:iam::127321794531:role/franchise-prod-api-task",
         "arn:aws:iam::127321794531:role/franchise-prod-migration-execution",
-        "arn:aws:iam::127321794531:role/franchise-prod-migration-task"
+        "arn:aws:iam::127321794531:role/franchise-prod-migration-task",
+        "arn:aws:iam::127321794531:role/franchise-prod-database-bootstrap-execution",
+        "arn:aws:iam::127321794531:role/franchise-prod-database-bootstrap-task"
       ]
     }
   }

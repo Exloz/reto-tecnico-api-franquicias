@@ -14,12 +14,20 @@ output "repository_urls" {
   value = try(module.container_registry[0].repository_urls, {})
 }
 
+output "repository_names" {
+  value = try(module.container_registry[0].repository_names, {})
+}
+
 output "ecs_cluster_name" {
   value = try(module.ecs_api[0].cluster_name, null)
 }
 
 output "ecs_service_name" {
   value = try(module.ecs_api[0].service_name, null)
+}
+
+output "api_task_definition_arn" {
+  value = try(module.ecs_api[0].task_definition_arn, null)
 }
 
 output "migration_task_definition_arn" {
@@ -44,6 +52,14 @@ output "alarm_arns" {
 
 output "dashboard_name" {
   value = try(module.observability[0].dashboard_name, null)
+}
+
+output "release_digests" {
+  value = {
+    api        = var.api_image_digest
+    migrations = var.migration_image_digest
+    bootstrap  = var.bootstrap_image_digest
+  }
 }
 
 output "ci_role_arns" {

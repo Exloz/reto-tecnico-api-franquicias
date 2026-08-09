@@ -114,9 +114,11 @@ data "aws_iam_policy_document" "ci_boundary" {
     actions = ["iam:PassRole"]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-dev-api-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-dev-database-bootstrap-*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-dev-migration-*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-dev-vpc-flow-logs",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-prod-api-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-prod-database-bootstrap-*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-prod-migration-*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/franchise-prod-vpc-flow-logs"
     ]

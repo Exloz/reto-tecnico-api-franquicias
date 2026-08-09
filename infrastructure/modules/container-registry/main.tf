@@ -32,11 +32,51 @@ resource "aws_ecr_lifecycle_policy" "this" {
     rules = [
       {
         rulePriority = 1
-        description  = "Keep the ${var.image_retention_count} most recent images"
+        description  = "Keep the ${var.image_retention_count} most recent deployed images"
         selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = var.image_retention_count
+          tagStatus     = "tagged"
+          tagPrefixList = ["deployed-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = var.image_retention_count
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep recent unpublished commit images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["commit-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = var.image_retention_count
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 3
+        description  = "Keep recent unvalidated promotion images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["source-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = var.image_retention_count
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 4
+        description  = "Expire untagged layers after one day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
         }
         action = {
           type = "expire"

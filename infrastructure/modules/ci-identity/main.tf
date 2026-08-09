@@ -31,7 +31,8 @@ locals {
   deploy_task_definitions = {
     for environment, config in var.environments : environment => [
       "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-api:*",
-      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-migration:*"
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-migration:*",
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-database-bootstrap:*"
     ]
   }
 }
@@ -368,14 +369,24 @@ data "aws_iam_policy_document" "deploy" {
   statement {
     actions = [
       "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:DescribeImages",
+      "ecr:GetDownloadUrlForLayer"
+    ]
+    resources = each.value.ecr_pull_repository_arns
+  }
+
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchDeleteImage",
       "ecr:CompleteLayerUpload",
       "ecr:DescribeImages",
-      "ecr:GetDownloadUrlForLayer",
       "ecr:InitiateLayerUpload",
       "ecr:PutImage",
       "ecr:UploadLayerPart"
     ]
-    resources = each.value.ecr_repository_arns
+    resources = each.value.ecr_push_repository_arns
   }
 
   statement {
@@ -390,6 +401,11 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
+    actions   = ["ecs:DescribeTaskDefinition"]
+    resources = local.deploy_task_definitions[each.key]
+  }
+
+  statement {
     actions   = ["ecs:RunTask"]
     resources = local.deploy_task_definitions[each.key]
 
@@ -398,11 +414,6 @@ data "aws_iam_policy_document" "deploy" {
       variable = "ecs:cluster"
       values   = [local.ecs_cluster_arns[each.key]]
     }
-  }
-
-  statement {
-    actions   = ["ecs:RegisterTaskDefinition"]
-    resources = ["*"]
   }
 
   statement {
