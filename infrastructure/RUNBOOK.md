@@ -390,6 +390,8 @@ No uses `aws rds stop-db-instance` como estrategia permanente: AWS vuelve a inic
 
 El workflow `CI` ejecuta validación de aplicación, mutaciones, Terraform, TFLint, Trivy y construcción ARM64 en pull requests y pushes protegidos.
 
+Las validaciones de rama, aplicación e infraestructura preceden a los jobs costosos. PIT, plan y construcción de contenedores no comienzan si falla uno de esos gates; `CI gate` agrega los resultados requeridos antes de permitir un despliegue.
+
 - Los feature branches abren pull request hacia `development`.
 - Un push aprobado a `development` publica y despliega DEV automáticamente.
 - Solo un merge commit del pull request `development` hacia `main` puede iniciar PROD.
