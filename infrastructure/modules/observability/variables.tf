@@ -26,6 +26,32 @@ variable "ecs_service_name" {
   nullable = true
 }
 
+variable "api_gateway_id" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
+variable "api_gateway_stage_name" {
+  type    = string
+  default = "$default"
+}
+
+variable "application_log_group_name" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
+variable "migration_log_group_name" {
+  type = string
+}
+
+variable "minimum_task_count" {
+  type    = number
+  default = 1
+}
+
 variable "database_instance_identifier" {
   type = string
 }
@@ -39,9 +65,11 @@ variable "api_observability_enabled" {
       var.alb_arn != null,
       var.target_group_arn != null,
       var.ecs_cluster_name != null,
-      var.ecs_service_name != null
+      var.ecs_service_name != null,
+      var.api_gateway_id != null,
+      var.application_log_group_name != null
     ])
-    error_message = "api_observability_enabled requires ALB, target group, ECS cluster, and ECS service inputs."
+    error_message = "api_observability_enabled requires API Gateway, ALB, target group, ECS, and application log inputs."
   }
 }
 
@@ -59,6 +87,16 @@ variable "ecs_cpu_threshold" {
 variable "ecs_memory_threshold" {
   type    = number
   default = 80
+}
+
+variable "api_gateway_5xx_threshold" {
+  type    = number
+  default = 1
+}
+
+variable "application_error_threshold" {
+  type    = number
+  default = 1
 }
 
 variable "rds_cpu_threshold" {

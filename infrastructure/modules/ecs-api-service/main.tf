@@ -166,7 +166,8 @@ resource "aws_ecs_task_definition" "this" {
         { name = "DB_NAME", value = var.database_name },
         { name = "DB_POOL_MAX_SIZE", value = "10" },
         { name = "DB_SSL_MODE", value = "VERIFY_FULL" },
-        { name = "DB_SSL_ROOT_CERT", value = "/app/certs/aws-rds-global-bundle.pem" }
+        { name = "DB_SSL_ROOT_CERT", value = "/app/certs/aws-rds-global-bundle.pem" },
+        { name = "APP_ENVIRONMENT", value = lookup(var.tags, "Environment", "unknown") }
       ]
       secrets = [
         { name = "DB_USERNAME", valueFrom = "${var.application_secret_arn}:username::" },

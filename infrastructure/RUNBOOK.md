@@ -123,6 +123,30 @@ Revisa logs:
 aws logs tail /ecs/franchise-dev-api --since 15m --follow
 ```
 
+Busca una solicitud completa por `X-Correlation-ID`:
+
+```sh
+CORRELATION_ID=phase08-live-validation
+
+aws logs filter-log-events \
+  --log-group-name /ecs/franchise-dev-api \
+  --filter-pattern "{ $.correlationId = \"$CORRELATION_ID\" }" \
+  --query 'events[].message' \
+  --output text
+```
+
+El evento `request.completed` incluye `correlationId`, `apiGatewayRequestId`, método, ruta normalizada, caso de uso, estado, duración, resultado y código de error. Usa `apiGatewayRequestId` para localizar el mismo request en `/aws/apigateway/franchise-dev`:
+
+```sh
+API_GATEWAY_REQUEST_ID='Bzu-ejocoAMEPCg='
+
+aws logs filter-log-events \
+  --log-group-name /aws/apigateway/franchise-dev \
+  --filter-pattern "{ $.requestId = \"$API_GATEWAY_REQUEST_ID\" }" \
+  --query 'events[].message' \
+  --output text
+```
+
 Busca errores recientes:
 
 ```sh
@@ -140,6 +164,29 @@ Revisa alarmas:
 aws cloudwatch describe-alarms \
   --alarm-name-prefix franchise-dev \
   --query 'MetricAlarms[].{name:AlarmName,state:StateValue}' \
+  --output table
+```
+
+El canal aprobado para esta entrega es la consola de CloudWatch, sin acciones SNS. El maintainer del repositorio es responsable de revisar el dashboard y las alarmas; no existe notificación automática ni escalamiento secundario.
+
+Los SLO iniciales usan una ventana móvil de 30 días:
+
+- Disponibilidad mínima: 99 %.
+- Latencia p95: menos de 500 ms.
+- Respuestas 5xx: menos de 1 %.
+
+Abre el dashboard consolidado:
+
+```text
+https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=franchise-dev-operations
+```
+
+Comprueba las métricas generadas desde los logs de aplicación:
+
+```sh
+aws cloudwatch list-metrics \
+  --namespace franchise-dev/Application \
+  --query 'Metrics[].{name:MetricName,dimensions:Dimensions}' \
   --output table
 ```
 
