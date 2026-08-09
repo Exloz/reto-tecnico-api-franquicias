@@ -148,7 +148,7 @@ jobs:
           set -eu
           root="infrastructure/environments/$TARGET_ENVIRONMENT"
           terraform -chdir="$root" init -input=false
-          current=$(terraform -chdir="$root" output -json release_digests 2>/dev/null || printf '{}')
+          current=$(terraform -chdir="$root" output -json release_digests 2>/dev/null | jq -e . 2>/dev/null || printf '{}')
           set --
           for component in api migrations bootstrap; do
             digest=$(printf '%s' "$current" | jq -r --arg component "$component" '.[$component] // empty')
