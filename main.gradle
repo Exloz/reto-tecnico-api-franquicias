@@ -66,7 +66,7 @@ subprojects {
     pitest {
         targetClasses = ['co.com.pragma.*']
         excludedClasses = []
-        excludedTestClasses = []
+        excludedTestClasses = ['co.com.pragma.r2dbc.PostgresqlAdaptersIntegrationTest']
         pitestVersion = '1.25.4'
         verbose = false
         outputFormats = ['XML', 'HTML']
