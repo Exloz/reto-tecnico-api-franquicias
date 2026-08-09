@@ -1,4 +1,5 @@
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 locals {
   apply_role_name       = "franchise-terraform-apply"
@@ -56,6 +57,24 @@ data "aws_iam_policy_document" "ci_boundary" {
     sid       = "CiProjectInfrastructure"
     actions   = ["apigateway:*", "application-autoscaling:*", "cloudwatch:*", "ec2:*", "ecr:*", "ecs:*", "elasticloadbalancing:*", "logs:*", "rds:*", "secretsmanager:*", "sns:*"]
     resources = ["*"]
+  }
+
+  statement {
+    sid       = "CiRdsKms"
+    actions   = ["kms:CreateGrant", "kms:DescribeKey"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["rds.${data.aws_region.current.region}.amazonaws.com"]
+    }
   }
 
   statement {

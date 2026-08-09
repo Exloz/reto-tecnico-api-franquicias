@@ -191,6 +191,24 @@ data "aws_iam_policy_document" "apply" {
   source_policy_documents = [data.aws_iam_policy_document.provider_read.json]
 
   statement {
+    sid       = "UseRdsManagedKmsKey"
+    actions   = ["kms:CreateGrant", "kms:DescribeKey"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["rds.${data.aws_region.current.region}.amazonaws.com"]
+    }
+  }
+
+  statement {
     sid       = "StateBucketLocation"
     actions   = ["s3:GetBucketLocation"]
     resources = [local.state_bucket_arn]
