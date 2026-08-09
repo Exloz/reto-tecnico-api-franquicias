@@ -70,7 +70,7 @@ resource "aws_iam_role" "task" {
 }
 
 resource "aws_ecs_task_definition" "this" {
-  count = var.workload_enabled ? 1 : 0
+  count = var.workload_enabled || var.image_uri != null ? 1 : 0
 
   family                   = "${var.name_prefix}-migration"
   cpu                      = tostring(var.cpu)
@@ -116,7 +116,7 @@ resource "aws_ecs_task_definition" "this" {
   lifecycle {
     precondition {
       condition     = var.image_uri != null && can(regex("@sha256:[0-9a-fA-F]{64}$", var.image_uri))
-      error_message = "workload_enabled requires image_uri pinned by sha256 digest."
+      error_message = "The migration task requires image_uri pinned by sha256 digest."
     }
   }
 

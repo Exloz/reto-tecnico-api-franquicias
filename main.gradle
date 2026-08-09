@@ -32,6 +32,7 @@ subprojects {
 
     test {
         useJUnitPlatform()
+        failFast = System.getenv('CI') != null
     }
 
     dependencies {
@@ -69,7 +70,7 @@ subprojects {
         pitestVersion = '1.25.4'
         verbose = false
         outputFormats = ['XML', 'HTML']
-        threads = project.name == 'r2dbc-postgresql' ? 1 : 8
+        threads = project.name == 'r2dbc-postgresql' ? 1 : (System.getenv('CI') != null ? 2 : 8)
         exportLineCoverage = true
         useClasspathFile = true
         withHistory = true
@@ -89,7 +90,7 @@ subprojects {
     }
 
     jacocoTestReport {
-        dependsOn test, 'pitest'
+        dependsOn test
         reports {
             xml.setRequired true
             xml.setOutputLocation layout.buildDirectory.file("reports/jacoco.xml")
@@ -106,7 +107,7 @@ jacoco {
 }
 
 tasks.register('jacocoMergedReport', JacocoReport) {
-    dependsOn = [test, subprojects.jacocoTestReport, pitestReportAggregate]
+    dependsOn = [test, subprojects.jacocoTestReport]
     additionalSourceDirs.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
     sourceDirectories.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
     classDirectories.setFrom files(subprojects.sourceSets.main.output)
