@@ -11,6 +11,18 @@ task_definition=$2
 network_json=$3
 container=$4
 task_arn=
+task_timeout_seconds=${ECS_TASK_TIMEOUT_SECONDS:-900}
+
+case $task_timeout_seconds in
+    ''|*[!0-9]*)
+        printf 'ECS_TASK_TIMEOUT_SECONDS must be a positive integer\n' >&2
+        exit 2
+        ;;
+    0)
+        printf 'ECS_TASK_TIMEOUT_SECONDS must be greater than zero\n' >&2
+        exit 2
+        ;;
+esac
 
 cleanup() {
     if [ -n "$task_arn" ]; then
@@ -52,7 +64,19 @@ if [ -z "$task_arn" ]; then
     exit 1
 fi
 
-aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
+deadline=$(($(date +%s) + task_timeout_seconds))
+while :; do
+    if ! task_status=$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \
+        --query 'tasks[0].lastStatus' --output text 2>/dev/null); then
+        task_status=UNKNOWN
+    fi
+    [ "$task_status" = STOPPED ] && break
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+        printf 'ECS task did not stop within %s seconds\n' "$task_timeout_seconds" >&2
+        exit 1
+    fi
+    sleep 10
+done
 task_result=$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" --output json)
 exit_code=$(printf '%s' "$task_result" | jq -r --arg container "$container" \
     '.tasks[0].containers[] | select(.name == $container) | .exitCode // empty')

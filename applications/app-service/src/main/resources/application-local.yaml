@@ -3,4 +3,9 @@ api:
     enabled: true
 adapters:
   r2dbc:
+    host: "${DB_HOST:localhost}"
+    port: "${DB_PORT:5432}"
+    database: "${DB_NAME:franchise}"
+    username: "${DB_USERNAME:franchise_app}"
+    password: "${DB_PASSWORD:franchise_app}"
     ssl-mode: "DISABLE"

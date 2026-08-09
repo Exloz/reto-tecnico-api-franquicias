@@ -44,8 +44,10 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
@@ -384,6 +386,16 @@ class RouterRestTest {
 
         webTestClient.get()
                 .uri("/api/v1/franchises/{franchiseId}/branches/top-stock-products?cursor=invalid", FRANCHISE_ID)
+                .exchange()
+                .expectStatus().isBadRequest();
+
+        String cursorWithoutSeparator = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("x".repeat(37).getBytes(StandardCharsets.UTF_8));
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/franchises/{franchiseId}/branches/top-stock-products")
+                        .queryParam("cursor", cursorWithoutSeparator)
+                        .build(FRANCHISE_ID))
                 .exchange()
                 .expectStatus().isBadRequest();
     }

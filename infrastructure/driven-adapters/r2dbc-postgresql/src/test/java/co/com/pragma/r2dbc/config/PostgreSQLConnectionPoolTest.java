@@ -56,4 +56,37 @@ class PostgreSQLConnectionPoolTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new PostgreSQLConnectionPool().connectionPool(properties));
     }
+
+    @Test
+    void rejectsInvalidPoolBudgets() {
+        Duration second = Duration.ofSeconds(1);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> properties(null, 1, second, Duration.ofSeconds(2), second, second));
+        assertThrows(IllegalArgumentException.class,
+                () -> properties(-1, 1, second, Duration.ofSeconds(2), second, second));
+        assertThrows(IllegalArgumentException.class,
+                () -> properties(0, null, second, Duration.ofSeconds(2), second, second));
+        assertThrows(IllegalArgumentException.class,
+                () -> properties(0, 0, second, Duration.ofSeconds(2), second, second));
+        assertThrows(IllegalArgumentException.class,
+                () -> properties(2, 1, second, Duration.ofSeconds(2), second, second));
+        assertThrows(IllegalArgumentException.class,
+                () -> properties(0, 1, Duration.ZERO, Duration.ofSeconds(2), second, second));
+        assertThrows(IllegalArgumentException.class,
+                () -> properties(0, 1, second, second, second, second));
+    }
+
+    private PostgresqlConnectionProperties properties(
+            Integer initialSize,
+            Integer maxSize,
+            Duration maxIdleTime,
+            Duration maxAcquireTime,
+            Duration maxLifeTime,
+            Duration connectTimeout) {
+        return new PostgresqlConnectionProperties(
+                "localhost", 5432, "franchise", "franchise", "franchise_app", "secret",
+                SSLMode.DISABLE, "", initialSize, maxSize, maxIdleTime, maxAcquireTime,
+                maxLifeTime, connectTimeout);
+    }
 }

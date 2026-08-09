@@ -17,6 +17,8 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 curl --fail-with-body --silent --show-error \
+    --connect-timeout 5 \
+    --max-time 320 \
     --retry 30 \
     --retry-all-errors \
     --retry-delay 10 \
@@ -26,6 +28,8 @@ curl --fail-with-body --silent --show-error \
 jq -e '.status == "UP"' "$response_file" >/dev/null
 
 status=$(curl --silent --show-error \
+    --connect-timeout 5 \
+    --max-time 30 \
     --output "$response_file" \
     --write-out '%{http_code}' \
     --header "X-Correlation-ID: $correlation_id" \

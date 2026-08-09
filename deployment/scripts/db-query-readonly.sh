@@ -1,11 +1,11 @@
 #!/bin/sh
 set -eu
 
-query=${1:?Usage: infrastructure/scripts/db-query-readonly.sh "SELECT ..."}
+query=${1:?Usage: deployment/scripts/db-query-readonly.sh "SELECT ..."}
 region=${AWS_REGION:-us-east-1}
 account_id=127321794531
 cluster=franchise-dev-cluster
-environment_directory=infrastructure/environments/dev
+environment_directory=deployment/terraform/environments/dev
 log_group=/ecs/franchise-dev-database-bootstrap
 task_definition=
 

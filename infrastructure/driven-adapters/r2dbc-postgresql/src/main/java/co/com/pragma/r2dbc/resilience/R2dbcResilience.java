@@ -8,6 +8,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.micrometer.tagged.TaggedCircuitBreakerMetrics;
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +20,7 @@ import reactor.util.retry.Retry;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -48,6 +50,8 @@ public class R2dbcResilience {
                 WRITE, circuitBreakerConfig(properties.write())));
         this.readCircuitBreaker = registry.circuitBreaker("r2dbc-read", READ);
         this.writeCircuitBreaker = registry.circuitBreaker("r2dbc-write", WRITE);
+        bindTransitionLogs(readCircuitBreaker, READ);
+        bindTransitionLogs(writeCircuitBreaker, WRITE);
         this.readRetry = retry(READ, classifier::retryRead);
         this.writeRetry = retry(WRITE, classifier::retryWrite);
         TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(registry).bindTo(meterRegistry);
@@ -71,6 +75,7 @@ public class R2dbcResilience {
                     .doOnNext(ignored -> emitted.set(true))
                     .retryWhen(retryBeforeFirstElement)
                     .transformDeferred(source -> withDeadline(source, properties.read().operationTimeout()))
+                    .transformDeferred(source -> record(source, READ))
                     .onErrorMap(classifier::unavailable, error -> unavailable(error, READ));
         });
     }
@@ -94,6 +99,7 @@ public class R2dbcResilience {
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
                 .retryWhen(retry)
                 .timeout(policy.operationTimeout())
+                .transformDeferred(source -> record(source, operationType))
                 .onErrorMap(classifier::unavailable, error -> unavailable(error, operationType));
     }
 
@@ -124,11 +130,20 @@ public class R2dbcResilience {
                 .maxBackoff(retry.maxBackoff())
                 .jitter(retry.jitter())
                 .filter(retryable)
-                .doBeforeRetry(signal -> meterRegistry.counter(
-                                "resilience.r2dbc.retries",
-                                "operation", operationType,
-                                "reason", classifier.reason(signal.failure()))
-                        .increment())
+                .doBeforeRetry(signal -> {
+                    String reason = classifier.reason(signal.failure());
+                    meterRegistry.counter(
+                                    "resilience.r2dbc.retries",
+                                    "operation", operationType,
+                                    "reason", reason)
+                            .increment();
+                    LOGGER.atWarn()
+                            .addKeyValue("event", "r2dbc.retry")
+                            .addKeyValue("operation", operationType)
+                            .addKeyValue("reason", reason)
+                            .addKeyValue("attempt", signal.totalRetries() + 2)
+                            .log("Retrying PostgreSQL operation");
+                })
                 .onRetryExhaustedThrow((spec, signal) -> signal.failure());
     }
 
@@ -146,6 +161,54 @@ public class R2dbcResilience {
                 .addKeyValue("errorType", error.getClass().getName())
                 .log("PostgreSQL operation unavailable");
         return new ServiceUnavailableException(error);
+    }
+
+    private void bindTransitionLogs(CircuitBreaker circuitBreaker, String operationType) {
+        circuitBreaker.getEventPublisher().onStateTransition(event -> LOGGER.atWarn()
+                .addKeyValue("event", "r2dbc.circuit.transition")
+                .addKeyValue("operation", operationType)
+                .addKeyValue("fromState", event.getStateTransition().getFromState().name())
+                .addKeyValue("toState", event.getStateTransition().getToState().name())
+                .log("PostgreSQL circuit breaker changed state"));
+    }
+
+    private <T> Mono<T> record(Mono<T> source, String operationType) {
+        return Mono.defer(() -> {
+            Timer.Sample sample = Timer.start(meterRegistry);
+            AtomicReference<String> outcome = new AtomicReference<>("success");
+            return source
+                    .doOnError(error -> outcome.set(outcome(error)))
+                    .doOnCancel(() -> outcome.set("cancelled"))
+                    .doFinally(ignored -> sample.stop(operationTimer(operationType, outcome.get())));
+        });
+    }
+
+    private <T> Flux<T> record(Flux<T> source, String operationType) {
+        return Flux.defer(() -> {
+            Timer.Sample sample = Timer.start(meterRegistry);
+            AtomicReference<String> outcome = new AtomicReference<>("success");
+            return source
+                    .doOnError(error -> outcome.set(outcome(error)))
+                    .doOnCancel(() -> outcome.set("cancelled"))
+                    .doFinally(ignored -> sample.stop(operationTimer(operationType, outcome.get())));
+        });
+    }
+
+    private Timer operationTimer(String operationType, String outcome) {
+        return Timer.builder("resilience.r2dbc.operation")
+                .tag("operation", operationType)
+                .tag("outcome", outcome)
+                .register(meterRegistry);
+    }
+
+    private String outcome(Throwable error) {
+        if (classifier.domainFailure(error)) {
+            return "domain_error";
+        }
+        if (classifier.unavailable(error)) {
+            return "unavailable";
+        }
+        return "error";
     }
 
     private <T> Flux<T> withDeadline(Flux<T> source, Duration timeout) {
