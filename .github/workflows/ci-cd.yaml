@@ -103,7 +103,7 @@ jobs:
           tflint_version: v0.59.1
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567
         with:
-          version: v0.71.0
+          version: v0.73.0
           cache: true
       - name: Validate Terraform
         run: |
@@ -172,7 +172,7 @@ jobs:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567
         with:
-          version: v0.71.0
+          version: v0.73.0
           cache: true
       - name: Build ARM64 images
         run: |
@@ -243,7 +243,7 @@ jobs:
           terraform_version: 1.10.5
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567
         with:
-          version: v0.71.0
+          version: v0.73.0
           cache: true
       - name: Reject superseded DEV commit
         env:
