@@ -320,16 +320,17 @@ jobs:
               --query 'imageDetails[0].imageDigest' --output text)
             trivy image --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 "$registry/$repository@$digest"
             key=$(printf '%s' "$component" | tr '[:lower:]' '[:upper:]')
-            printf '%s_DIGEST=%s\n' "$key" "$digest" >> "$GITHUB_ENV"
+            printf '%s_DIGEST=%s\n' "$key" "$digest" > "/tmp/digests-$component"
           }
 
           build_image api deployment/Dockerfile . &
           build_image migrations database/Dockerfile database &
           build_image bootstrap database/bootstrap/Dockerfile database/bootstrap &
-          wait
+          for pid in $(jobs -p); do
+            wait "$pid" || exit 1
+          done
           for component in api migrations bootstrap; do
-            key=$(printf '%s' "$component" | tr '[:lower:]' '[:upper:]')
-            grep -q "^${key}_DIGEST=" "$GITHUB_ENV" || { echo "Missing $key digest" >&2; exit 1; }
+            cat "/tmp/digests-$component" >> "$GITHUB_ENV"
           done
       - name: Read current DEV release
         run: |
