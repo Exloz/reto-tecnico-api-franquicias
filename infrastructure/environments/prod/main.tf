@@ -160,6 +160,10 @@ module "observability" {
   target_group_arn             = module.ecs_api[0].target_group_arn
   ecs_cluster_name             = module.ecs_api[0].cluster_name
   ecs_service_name             = module.ecs_api[0].service_name
+  api_gateway_id               = try(module.api_gateway[0].api_id, null)
+  application_log_group_name   = module.ecs_api[0].log_group_name
+  migration_log_group_name     = module.database_migration[0].log_group_name
+  minimum_task_count           = 2
   api_observability_enabled    = var.enable_api_service
   database_instance_identifier = module.database[0].database_instance_identifier
   sns_topic_arn                = var.notification_topic_arn
