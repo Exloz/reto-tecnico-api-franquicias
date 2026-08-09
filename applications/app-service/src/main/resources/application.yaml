@@ -14,6 +14,8 @@ logging:
 api:
   swagger-ui:
     enabled: false
+  deadline:
+    timeout: "${API_DEADLINE_TIMEOUT:25s}"
 adapters:
   r2dbc:
     host: "${DB_HOST:localhost}"
@@ -24,9 +26,40 @@ adapters:
     password: "${DB_PASSWORD:franchise_app}"
     ssl-mode: "${DB_SSL_MODE:DISABLE}"
     ssl-root-cert: "${DB_SSL_ROOT_CERT:}"
-    initial-size: 0
+    initial-size: "${DB_POOL_INITIAL_SIZE:0}"
     max-size: "${DB_POOL_MAX_SIZE:15}"
-    max-idle-time: "30m"
+    max-idle-time: "${DB_POOL_MAX_IDLE_TIME:30m}"
+    max-acquire-time: "${DB_POOL_MAX_ACQUIRE_TIME:5s}"
+    max-life-time: "${DB_POOL_MAX_LIFE_TIME:60m}"
+    connect-timeout: "${DB_CONNECT_TIMEOUT:3s}"
+    resilience:
+      read:
+        attempt-timeout: "${DB_READ_ATTEMPT_TIMEOUT:3s}"
+        operation-timeout: "${DB_READ_OPERATION_TIMEOUT:10s}"
+        circuit-breaker:
+          failure-rate-threshold: "${DB_READ_CB_FAILURE_RATE:50}"
+          slow-call-rate-threshold: "${DB_READ_CB_SLOW_RATE:50}"
+          slow-call-duration-threshold: "${DB_READ_CB_SLOW_DURATION:2s}"
+          sliding-window-size: "${DB_READ_CB_WINDOW_SIZE:20}"
+          minimum-number-of-calls: "${DB_READ_CB_MIN_CALLS:10}"
+          wait-duration-in-open-state: "${DB_READ_CB_OPEN_WAIT:30s}"
+          permitted-number-of-calls-in-half-open-state: "${DB_READ_CB_HALF_OPEN_CALLS:3}"
+      write:
+        attempt-timeout: "${DB_WRITE_ATTEMPT_TIMEOUT:5s}"
+        operation-timeout: "${DB_WRITE_OPERATION_TIMEOUT:15s}"
+        circuit-breaker:
+          failure-rate-threshold: "${DB_WRITE_CB_FAILURE_RATE:50}"
+          slow-call-rate-threshold: "${DB_WRITE_CB_SLOW_RATE:50}"
+          slow-call-duration-threshold: "${DB_WRITE_CB_SLOW_DURATION:3s}"
+          sliding-window-size: "${DB_WRITE_CB_WINDOW_SIZE:20}"
+          minimum-number-of-calls: "${DB_WRITE_CB_MIN_CALLS:10}"
+          wait-duration-in-open-state: "${DB_WRITE_CB_OPEN_WAIT:30s}"
+          permitted-number-of-calls-in-half-open-state: "${DB_WRITE_CB_HALF_OPEN_CALLS:3}"
+      retry:
+        max-attempts: "${DB_RETRY_MAX_ATTEMPTS:3}"
+        min-backoff: "${DB_RETRY_MIN_BACKOFF:250ms}"
+        max-backoff: "${DB_RETRY_MAX_BACKOFF:2s}"
+        jitter: "${DB_RETRY_JITTER:0.5}"
 aws:
   region: "us-east-1"
   secretName: "my-secret"

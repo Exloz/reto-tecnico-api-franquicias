@@ -7,6 +7,7 @@ import co.com.pragma.model.common.exception.InvalidStockException;
 import co.com.pragma.model.common.exception.ResourceNotFoundException;
 import co.com.pragma.model.common.exception.VersionConflictException;
 import co.com.pragma.r2dbc.entity.BranchProductData;
+import co.com.pragma.r2dbc.resilience.R2dbcResilience;
 import lombok.RequiredArgsConstructor;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
@@ -27,21 +28,22 @@ public class BranchProductR2dbcAdapter implements BranchProductRepository {
 
     private final DatabaseClient databaseClient;
     private final TransactionalOperator transactionalOperator;
+    private final R2dbcResilience resilience;
 
     @Override
     public Mono<BranchProduct> findActiveByIdAndBranchId(UUID productId, UUID branchId) {
-        return databaseClient.sql("SELECT " + COLUMNS + " FROM franchise.branch_products "
+        return resilience.read(() -> databaseClient.sql("SELECT " + COLUMNS + " FROM franchise.branch_products "
                         + "WHERE id = :id AND branch_id = :branchId AND deleted_at IS NULL")
                 .bind("id", productId)
                 .bind("branchId", branchId)
                 .map((row, metadata) -> BranchProductData.from(row).toDomain())
-                .one();
+                .one());
     }
 
     @Override
     public Mono<BranchProduct> create(BranchProduct product) {
         BranchProductData data = BranchProductData.from(product);
-        return databaseClient.sql("""
+        return resilience.write(() -> databaseClient.sql("""
                         INSERT INTO franchise.branch_products
                             (id, branch_id, name, normalized_name, stock, version, created_at, updated_at)
                         VALUES (:id, :branchId, :name, :normalizedName, :stock, :version, :createdAt, :updatedAt)
@@ -66,13 +68,13 @@ public class BranchProductR2dbcAdapter implements BranchProductRepository {
                         error -> new ResourceNotFoundException("Branch", data.branchId()))
                 .onErrorMap(
                         error -> PostgresqlErrorMapper.hasSqlState(error, "23514"),
-                        error -> new InvalidStockException(data.stock()));
+                        error -> new InvalidStockException(data.stock())));
     }
 
     @Override
     public Mono<BranchProduct> rename(BranchProduct product, long expectedVersion) {
         BranchProductData data = BranchProductData.from(product);
-        return update(data, expectedVersion, """
+        return resilience.write(() -> update(data, expectedVersion, """
                 SET name = :name,
                     normalized_name = :normalizedName,
                     version = version + 1,
@@ -83,26 +85,26 @@ public class BranchProductR2dbcAdapter implements BranchProductRepository {
                 .onErrorMap(
                         error -> PostgresqlErrorMapper.hasConstraint(
                                 error, "uq_branch_products_active_normalized_name"),
-                        error -> new DuplicateNameException("Product", data.name()));
+                        error -> new DuplicateNameException("Product", data.name())));
     }
 
     @Override
     public Mono<BranchProduct> updateStock(BranchProduct product, long expectedVersion) {
         BranchProductData data = BranchProductData.from(product);
-        return update(data, expectedVersion, """
+        return resilience.write(() -> update(data, expectedVersion, """
                 SET stock = :stock,
                     version = version + 1,
                     updated_at = :updatedAt
                 """, statement -> statement.bind("stock", data.stock()))
                 .onErrorMap(
                         error -> PostgresqlErrorMapper.hasSqlState(error, "23514"),
-                        error -> new InvalidStockException(data.stock()));
+                        error -> new InvalidStockException(data.stock())));
     }
 
     @Override
     public Mono<Void> softDelete(BranchProduct product, long expectedVersion) {
         BranchProductData data = BranchProductData.from(product);
-        return databaseClient.sql("""
+        return resilience.write(() -> databaseClient.sql("""
                         UPDATE franchise.branch_products
                         SET deleted_at = :deletedAt,
                             version = version + 1,
@@ -122,7 +124,7 @@ public class BranchProductR2dbcAdapter implements BranchProductRepository {
                 .one()
                 .switchIfEmpty(Mono.defer(() -> diagnoseUpdate(data, expectedVersion)))
                 .then()
-                .as(transactionalOperator::transactional);
+                .as(transactionalOperator::transactional));
     }
 
     private Mono<BranchProduct> update(

@@ -25,6 +25,7 @@ public class PostgreSQLConnectionPool {
                 .schema(properties.schema())
                 .username(properties.username())
                 .password(properties.password())
+                .connectTimeout(properties.connectTimeout())
                 .sslMode(properties.sslMode());
 
         Optional.ofNullable(properties.sslRootCert())
@@ -39,6 +40,8 @@ public class PostgreSQLConnectionPool {
                 .initialSize(properties.initialSize())
                 .maxSize(properties.maxSize())
                 .maxIdleTime(properties.maxIdleTime())
+                .maxAcquireTime(properties.maxAcquireTime())
+                .maxLifeTime(properties.maxLifeTime())
                 .validationQuery("SELECT 1")
                 .build();
 

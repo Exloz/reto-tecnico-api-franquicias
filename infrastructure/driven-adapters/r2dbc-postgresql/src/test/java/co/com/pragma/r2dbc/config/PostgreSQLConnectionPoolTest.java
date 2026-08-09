@@ -24,7 +24,10 @@ class PostgreSQLConnectionPoolTest {
                 "",
                 0,
                 7,
-                Duration.ofMinutes(15));
+                Duration.ofMinutes(15),
+                Duration.ofSeconds(5),
+                Duration.ofMinutes(60),
+                Duration.ofSeconds(3));
 
         ConnectionPool pool = new PostgreSQLConnectionPool().connectionPool(properties);
 
@@ -45,7 +48,10 @@ class PostgreSQLConnectionPoolTest {
                 "/missing/rds-ca.pem",
                 0,
                 7,
-                Duration.ofMinutes(15));
+                Duration.ofMinutes(15),
+                Duration.ofSeconds(5),
+                Duration.ofMinutes(60),
+                Duration.ofSeconds(3));
 
         assertThrows(IllegalArgumentException.class,
                 () -> new PostgreSQLConnectionPool().connectionPool(properties));
