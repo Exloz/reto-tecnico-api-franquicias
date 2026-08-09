@@ -78,6 +78,24 @@ data "aws_iam_policy_document" "ci_boundary" {
   }
 
   statement {
+    sid       = "CiSecretsManagerKms"
+    actions   = ["kms:CreateGrant", "kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey*", "kms:ReEncrypt*"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["secretsmanager.${data.aws_region.current.region}.amazonaws.com"]
+    }
+  }
+
+  statement {
     sid       = "CiTerraformStateBucket"
     actions   = ["s3:GetBucketLocation", "s3:ListBucket"]
     resources = ["arn:aws:s3:::${var.state_bucket_name}"]
