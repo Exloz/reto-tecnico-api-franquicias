@@ -89,10 +89,10 @@ module "ecs_api" {
   database_host            = module.database[0].database_address
   database_port            = module.database[0].database_port
   database_name            = "franchise"
-  cpu                      = 1024
-  memory                   = 2048
-  minimum_capacity         = 2
-  maximum_capacity         = 6
+  cpu                      = 512
+  memory                   = 1024
+  minimum_capacity         = 1
+  maximum_capacity         = 3
   log_retention_days       = 30
   tags                     = local.tags
 }

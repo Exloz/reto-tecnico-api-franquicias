@@ -73,7 +73,7 @@ module "ecs_api" {
   cpu                      = 512
   memory                   = 1024
   minimum_capacity         = 1
-  maximum_capacity         = 2
+  maximum_capacity         = 1
   log_retention_days       = 7
   tags                     = local.tags
 }
