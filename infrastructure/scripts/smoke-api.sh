@@ -17,6 +17,10 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 curl --fail-with-body --silent --show-error \
+    --retry 30 \
+    --retry-all-errors \
+    --retry-delay 10 \
+    --retry-max-time 300 \
     "$base_url/actuator/health/readiness" \
     -o "$response_file"
 jq -e '.status == "UP"' "$response_file" >/dev/null

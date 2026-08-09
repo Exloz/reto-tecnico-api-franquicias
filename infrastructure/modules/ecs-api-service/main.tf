@@ -203,6 +203,7 @@ resource "aws_ecs_service" "this" {
   desired_count                      = var.minimum_capacity
   launch_type                        = "FARGATE"
   platform_version                   = "1.4.0"
+  wait_for_steady_state              = true
   health_check_grace_period_seconds  = var.health_check_grace_period_seconds
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
