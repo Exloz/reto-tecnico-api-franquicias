@@ -4,6 +4,7 @@ import co.com.pragma.model.branchproducts.BranchProduct;
 import co.com.pragma.model.branchproducts.BranchTopStock;
 import co.com.pragma.model.branchproducts.TopStockCursor;
 import co.com.pragma.model.branchproducts.gateways.TopStockQueryRepository;
+import co.com.pragma.r2dbc.resilience.R2dbcResilience;
 import io.r2dbc.spi.Row;
 import lombok.RequiredArgsConstructor;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -45,18 +46,21 @@ public class TopStockR2dbcAdapter implements TopStockQueryRepository {
             """;
 
     private final DatabaseClient databaseClient;
+    private final R2dbcResilience resilience;
 
     @Override
     public Flux<BranchTopStock> findTopActiveProductPerBranchOrdered(
             UUID franchiseId, TopStockCursor cursor, int limit) {
-        DatabaseClient.GenericExecuteSpec statement = Optional.ofNullable(cursor)
-                .map(this::queryAfter)
-                .orElseGet(() -> databaseClient.sql(QUERY + ORDER_AND_LIMIT));
-        return statement
-                .bind("franchiseId", franchiseId)
-                .bind("limit", limit)
-                .map((row, metadata) -> mapRow(row))
-                .all();
+        return resilience.readMany(() -> {
+            DatabaseClient.GenericExecuteSpec statement = Optional.ofNullable(cursor)
+                    .map(this::queryAfter)
+                    .orElseGet(() -> databaseClient.sql(QUERY + ORDER_AND_LIMIT));
+            return statement
+                    .bind("franchiseId", franchiseId)
+                    .bind("limit", limit)
+                    .map((row, metadata) -> mapRow(row))
+                    .all();
+        });
     }
 
     private DatabaseClient.GenericExecuteSpec queryAfter(TopStockCursor cursor) {

@@ -42,6 +42,8 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /franchises/{franchiseId}:
     parameters:
       - $ref: '#/components/parameters/FranchiseId'
@@ -82,6 +84,8 @@ paths:
           $ref: '#/components/responses/PreconditionRequired'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /franchises/{franchiseId}/branches:
     parameters:
       - $ref: '#/components/parameters/FranchiseId'
@@ -118,6 +122,8 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /franchises/{franchiseId}/branches/{branchId}:
     parameters:
       - $ref: '#/components/parameters/FranchiseId'
@@ -159,6 +165,8 @@ paths:
           $ref: '#/components/responses/PreconditionRequired'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /franchises/{franchiseId}/branches/{branchId}/products:
     parameters:
       - $ref: '#/components/parameters/FranchiseId'
@@ -196,6 +204,8 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /franchises/{franchiseId}/branches/{branchId}/products/{productId}:
     parameters:
       - $ref: '#/components/parameters/FranchiseId'
@@ -238,6 +248,8 @@ paths:
           $ref: '#/components/responses/PreconditionRequired'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
     delete:
       tags: [Products]
       operationId: deleteProduct
@@ -259,6 +271,8 @@ paths:
           $ref: '#/components/responses/PreconditionRequired'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /franchises/{franchiseId}/branches/{branchId}/products/{productId}/stock:
     parameters:
       - $ref: '#/components/parameters/FranchiseId'
@@ -299,6 +313,8 @@ paths:
           $ref: '#/components/responses/PreconditionRequired'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /franchises/{franchiseId}/branches/top-stock-products:
     parameters:
       - $ref: '#/components/parameters/FranchiseId'
@@ -336,6 +352,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 components:
   parameters:
     FranchiseId:
@@ -442,6 +460,15 @@ components:
             $ref: '#/components/schemas/Problem'
     InternalError:
       description: Unexpected internal error
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: PostgreSQL is temporarily unavailable or the request resilience deadline was exceeded
       headers:
         X-Correlation-ID:
           $ref: '#/components/headers/CorrelationId'

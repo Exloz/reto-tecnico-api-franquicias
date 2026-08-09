@@ -7,6 +7,7 @@ buildscript {
 		blockHoundVersion = '1.0.17.RELEASE'
 		pitestVersion = '1.19.0'
 		pitestHistoryVersion = '0.0.1'
+        resilience4jVersion = '2.4.0'
         lombokVersion = '1.18.46'
 	}
 }

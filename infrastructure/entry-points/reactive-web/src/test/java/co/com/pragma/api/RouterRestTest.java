@@ -1,9 +1,11 @@
 package co.com.pragma.api;
 
 import co.com.pragma.api.config.JsonConfig;
+import co.com.pragma.api.config.ApiDeadlineProperties;
 import co.com.pragma.api.error.GlobalExceptionHandler;
 import co.com.pragma.api.error.ProblemResponse;
 import co.com.pragma.api.filter.CorrelationIdFilter;
+import co.com.pragma.api.filter.ApiDeadlineFilter;
 import co.com.pragma.api.filter.RequestObservabilityFilter;
 import co.com.pragma.api.pagination.CursorCodec;
 import co.com.pragma.model.branches.Branch;
@@ -14,6 +16,7 @@ import co.com.pragma.model.branchproducts.TopStockPage;
 import co.com.pragma.model.common.exception.InvalidNameException;
 import co.com.pragma.model.common.exception.DuplicateNameException;
 import co.com.pragma.model.common.exception.ResourceNotFoundException;
+import co.com.pragma.model.common.exception.ServiceUnavailableException;
 import co.com.pragma.model.common.exception.VersionConflictException;
 import co.com.pragma.model.franchises.Franchise;
 import co.com.pragma.usecase.addbranch.AddBranchUseCase;
@@ -26,6 +29,7 @@ import co.com.pragma.usecase.renamebranchproduct.RenameBranchProductUseCase;
 import co.com.pragma.usecase.renamefranchise.RenameFranchiseUseCase;
 import co.com.pragma.usecase.updatebranchproductstock.UpdateBranchProductStockUseCase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -41,8 +45,10 @@ import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -60,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         CursorCodec.class,
         CorrelationIdFilter.class,
         RequestObservabilityFilter.class,
+        ApiDeadlineFilter.class,
         GlobalExceptionHandler.class,
         JsonConfig.class
 })
@@ -91,6 +98,13 @@ class RouterRestTest {
     private RenameBranchUseCase renameBranchUseCase;
     @MockitoBean
     private RenameBranchProductUseCase renameBranchProductUseCase;
+    @MockitoBean
+    private ApiDeadlineProperties apiDeadlineProperties;
+
+    @BeforeEach
+    void configureDeadline() {
+        when(apiDeadlineProperties.timeout()).thenReturn(Duration.ofSeconds(5));
+    }
 
     @Test
     void createsFranchiseWithLocationEtagAndCorrelationId() {
@@ -110,6 +124,40 @@ class RouterRestTest {
                 .jsonPath("$.id").isEqualTo(FRANCHISE_ID.toString())
                 .jsonPath("$.name").isEqualTo("Acme")
                 .jsonPath("$.normalizedName").doesNotExist();
+    }
+
+    @Test
+    void returnsServiceUnavailableProblemForDependencyFailures() {
+        when(createFranchiseUseCase.execute("Acme")).thenReturn(Mono.error(
+                new ServiceUnavailableException(new TimeoutException())));
+
+        webTestClient.post()
+                .uri("/api/v1/franchises")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"Acme\"}")
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.SERVICE_UNAVAILABLE)
+                .expectHeader().contentType("application/problem+json")
+                .expectBody()
+                .jsonPath("$.type").isEqualTo("urn:franchise-api:problem:service-unavailable")
+                .jsonPath("$.status").isEqualTo(503)
+                .jsonPath("$.detail").isEqualTo("Service Unavailable");
+    }
+
+    @Test
+    void enforcesApiDeadlineBeforeGatewayTimeout() {
+        when(apiDeadlineProperties.timeout()).thenReturn(Duration.ofMillis(50));
+        when(createFranchiseUseCase.execute("Acme")).thenReturn(
+                Mono.delay(Duration.ofSeconds(1)).map(ignored -> franchise(0)));
+
+        webTestClient.post()
+                .uri("/api/v1/franchises")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"Acme\"}")
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.SERVICE_UNAVAILABLE)
+                .expectBody()
+                .jsonPath("$.type").isEqualTo("urn:franchise-api:problem:service-unavailable");
     }
 
     @Test

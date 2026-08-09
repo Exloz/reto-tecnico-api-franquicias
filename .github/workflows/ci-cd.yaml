@@ -499,6 +499,22 @@ jobs:
           set -eu
           source_tag="deployed-$DEVELOPMENT_SHA"
           destination_tag="source-$DEVELOPMENT_SHA"
+          wait_for_image() {
+            repository=$1
+            attempts=0
+            until aws ecr describe-images --repository-name "$repository" \
+              --image-ids "imageTag=$source_tag" >/dev/null 2>&1; do
+              attempts=$((attempts + 1))
+              if [ "$attempts" -ge 60 ]; then
+                printf 'DEV image %s:%s was not validated within 10 minutes\n' "$repository" "$source_tag" >&2
+                return 1
+              fi
+              sleep 10
+            done
+          }
+          for repository in franchise-dev-api franchise-dev-migrations franchise-dev-bootstrap; do
+            wait_for_image "$repository"
+          done
           api_digest=$(infrastructure/scripts/copy-ecr-image.sh franchise-dev-api "$source_tag" franchise-prod-api "$destination_tag")
           migrations_digest=$(infrastructure/scripts/copy-ecr-image.sh franchise-dev-migrations "$source_tag" franchise-prod-migrations "$destination_tag")
           bootstrap_digest=$(infrastructure/scripts/copy-ecr-image.sh franchise-dev-bootstrap "$source_tag" franchise-prod-bootstrap "$destination_tag")

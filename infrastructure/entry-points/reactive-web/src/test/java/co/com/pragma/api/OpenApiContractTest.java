@@ -52,6 +52,9 @@ class OpenApiContractTest {
                 for (String key : path.getValue().keySet()) {
                     if (HTTP_METHODS.contains(key)) {
                         documentedOperations.add(key.toUpperCase() + " " + serverUrl + path.getKey());
+                        Map<String, Object> operation = value(path.getValue(), key);
+                        Map<String, Object> responses = value(operation, "responses");
+                        assertThat(responses).containsKey("503");
                     }
                 }
             }

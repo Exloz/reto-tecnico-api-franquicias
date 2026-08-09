@@ -8,6 +8,7 @@ import co.com.pragma.model.common.exception.InvalidPageSizeException;
 import co.com.pragma.model.common.exception.InvalidStockException;
 import co.com.pragma.model.common.exception.InvalidVersionException;
 import co.com.pragma.model.common.exception.ResourceNotFoundException;
+import co.com.pragma.model.common.exception.ServiceUnavailableException;
 import co.com.pragma.model.common.exception.VersionConflictException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +63,9 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
             mapping(InvalidStockException.class, HttpStatus.UNPROCESSABLE_CONTENT,
                     "invalid-stock", "Invalid stock", true),
             mapping(MissingPreconditionException.class, HttpStatus.PRECONDITION_REQUIRED,
-                    "precondition-required", "Precondition required", true));
+                    "precondition-required", "Precondition required", true),
+            mapping(ServiceUnavailableException.class, HttpStatus.SERVICE_UNAVAILABLE,
+                    "service-unavailable", "Service unavailable", false));
 
     private final ServerCodecConfigurer codecConfigurer;
 
