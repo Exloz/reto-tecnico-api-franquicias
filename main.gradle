@@ -101,6 +101,14 @@ subprojects {
 
 }
 
+project(':app-service').tasks.named('test') {
+    mustRunAfter project(':r2dbc-postgresql').tasks.named('test')
+}
+
+project(':app-service').tasks.named('pitest') {
+    mustRunAfter project(':r2dbc-postgresql').tasks.named('pitest')
+}
+
 jacoco {
     toolVersion = "${jacocoVersion}"
     reportsDirectory.set(layout.buildDirectory.dir("reports"))
