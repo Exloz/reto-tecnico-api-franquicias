@@ -308,9 +308,16 @@ class PostgresqlAdaptersIntegrationTest {
                                 2,
                                 productAdapter.updateStock(firstUpdate, 0),
                                 productAdapter.updateStock(secondUpdate, 0)))
-                        .materialize())
-                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getVersion() == 1)
-                .assertNext(signal -> assertInstanceOf(VersionConflictException.class, signal.getThrowable()))
+                        .materialize()
+                        .collectList())
+                .assertNext(signals -> {
+                    assertEquals(2, signals.size());
+                    long onSuccess = signals.stream().filter(s -> s.isOnNext() && s.get().getVersion() == 1).count();
+                    long onError = signals.stream().filter(s -> s.isOnError()
+                            && s.getThrowable() instanceof VersionConflictException).count();
+                    assertEquals(1, onSuccess);
+                    assertEquals(1, onError);
+                })
                 .verifyComplete();
     }
 
@@ -340,10 +347,17 @@ class PostgresqlAdaptersIntegrationTest {
                                 2,
                                 productAdapter.updateStock(update, 0).thenReturn("update"),
                                 productAdapter.softDelete(deletion, 0).thenReturn("delete")))
-                        .materialize())
-                .expectNextMatches(signal -> signal.isOnNext()
-                        && (signal.get().equals("update") || signal.get().equals("delete")))
-                .assertNext(signal -> assertInstanceOf(VersionConflictException.class, signal.getThrowable()))
+                        .materialize()
+                        .collectList())
+                .assertNext(signals -> {
+                    assertEquals(2, signals.size());
+                    long onSuccess = signals.stream().filter(s -> s.isOnNext()
+                            && (s.get().equals("update") || s.get().equals("delete"))).count();
+                    long onError = signals.stream().filter(s -> s.isOnError()
+                            && s.getThrowable() instanceof VersionConflictException).count();
+                    assertEquals(1, onSuccess);
+                    assertEquals(1, onError);
+                })
                 .verifyComplete();
     }
 
