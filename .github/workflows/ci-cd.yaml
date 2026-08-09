@@ -306,7 +306,7 @@ jobs:
           tag="commit-$GITHUB_SHA"
           aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
 
-          build_image() {
+          build_and_push() {
             component=$1
             dockerfile=$2
             context=$3
@@ -316,22 +316,27 @@ jobs:
                 --cache-from="type=gha,scope=ci-$component" --cache-to="type=gha,mode=max,scope=ci-$component" \
                 -t "$registry/$repository:$tag" -f "$dockerfile" "$context"
             fi
+          }
+
+          scan_and_record() {
+            component=$1
+            repository="franchise-dev-$component"
             digest=$(aws ecr describe-images --repository-name "$repository" --image-ids "imageTag=$tag" \
               --query 'imageDetails[0].imageDigest' --output text)
             trivy image --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 "$registry/$repository@$digest"
             key=$(printf '%s' "$component" | tr '[:lower:]' '[:upper:]')
-            printf '%s_DIGEST=%s\n' "$key" "$digest" > "/tmp/digests-$component"
+            printf '%s_DIGEST=%s\n' "$key" "$digest" >> "$GITHUB_ENV"
           }
 
-          build_image api deployment/Dockerfile . &
-          build_image migrations database/Dockerfile database &
-          build_image bootstrap database/bootstrap/Dockerfile database/bootstrap &
+          build_and_push api deployment/Dockerfile . &
+          build_and_push migrations database/Dockerfile database &
+          build_and_push bootstrap database/bootstrap/Dockerfile database/bootstrap &
           for pid in $(jobs -p); do
             wait "$pid" || exit 1
           done
-          for component in api migrations bootstrap; do
-            cat "/tmp/digests-$component" >> "$GITHUB_ENV"
-          done
+          scan_and_record api
+          scan_and_record migrations
+          scan_and_record bootstrap
       - name: Read current DEV release
         run: |
           set -eu
