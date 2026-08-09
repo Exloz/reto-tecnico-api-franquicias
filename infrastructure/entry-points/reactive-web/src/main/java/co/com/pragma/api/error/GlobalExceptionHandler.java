@@ -1,6 +1,7 @@
 package co.com.pragma.api.error;
 
 import co.com.pragma.api.filter.CorrelationIdFilter;
+import co.com.pragma.api.filter.RequestObservabilityFilter;
 import co.com.pragma.model.common.exception.DuplicateNameException;
 import co.com.pragma.model.common.exception.InvalidNameException;
 import co.com.pragma.model.common.exception.InvalidPageSizeException;
@@ -79,6 +80,7 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
     }
 
     private Mono<Void> write(ServerWebExchange exchange, Throwable error, ErrorDescriptor descriptor) {
+        exchange.getAttributes().put(RequestObservabilityFilter.ERROR_CODE_ATTRIBUTE, descriptor.code());
         String detail = Optional.of(descriptor)
                 .filter(ErrorDescriptor::exposeDetail)
                 .map(ignored -> error.getMessage())
@@ -95,7 +97,19 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
                         .orElseGet(CorrelationIdFilter::newCorrelationId));
         return Mono.just(descriptor)
                 .filter(INTERNAL::equals)
-                .doOnNext(ignored -> LOGGER.error("Unhandled request failure", error))
+                .doOnNext(ignored -> LOGGER.atError()
+                        .addKeyValue("event", "request.failure")
+                        .addKeyValue("correlationId", Optional.ofNullable(
+                                        exchange.getAttribute(CorrelationIdFilter.ATTRIBUTE_NAME))
+                                .map(Object::toString)
+                                .orElse("unknown"))
+                        .addKeyValue("apiGatewayRequestId", Optional.ofNullable(exchange.getRequest().getHeaders()
+                                        .getFirst(RequestObservabilityFilter.API_GATEWAY_REQUEST_ID_HEADER))
+                                .filter(value -> value.matches("[\\x20-\\x7E]{1,128}"))
+                                .orElse("unknown"))
+                        .addKeyValue("errorCode", descriptor.code())
+                        .addKeyValue("errorType", error.getClass().getName())
+                        .log("Unhandled request failure"))
                 .then(ServerResponse.status(descriptor.status())
                         .contentType(PROBLEM_JSON)
                         .bodyValue(problem)

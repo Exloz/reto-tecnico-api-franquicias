@@ -26,6 +26,9 @@ resource "aws_apigatewayv2_integration" "alb" {
   connection_id          = aws_apigatewayv2_vpc_link.this.id
   payload_format_version = "1.0"
   timeout_milliseconds   = 30000
+  request_parameters = {
+    "overwrite:header.x-api-gateway-request-id" = "$context.requestId"
+  }
 }
 
 resource "aws_apigatewayv2_route" "api" {
@@ -53,15 +56,18 @@ resource "aws_apigatewayv2_stage" "default" {
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.this.arn
     format = jsonencode({
-      requestId        = "$context.requestId"
-      sourceIp         = "$context.identity.sourceIp"
-      requestTime      = "$context.requestTime"
-      httpMethod       = "$context.httpMethod"
-      routeKey         = "$context.routeKey"
-      status           = "$context.status"
-      protocol         = "$context.protocol"
-      responseLength   = "$context.responseLength"
-      integrationError = "$context.integrationErrorMessage"
+      requestId          = "$context.requestId"
+      integrationId      = "$context.integration.requestId"
+      sourceIp           = "$context.identity.sourceIp"
+      requestTime        = "$context.requestTime"
+      httpMethod         = "$context.httpMethod"
+      routeKey           = "$context.routeKey"
+      status             = "$context.status"
+      protocol           = "$context.protocol"
+      responseLength     = "$context.responseLength"
+      responseLatency    = "$context.responseLatency"
+      integrationLatency = "$context.integrationLatency"
+      integrationError   = "$context.integrationErrorMessage"
     })
   }
 

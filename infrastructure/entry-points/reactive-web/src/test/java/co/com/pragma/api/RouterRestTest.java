@@ -4,6 +4,7 @@ import co.com.pragma.api.config.JsonConfig;
 import co.com.pragma.api.error.GlobalExceptionHandler;
 import co.com.pragma.api.error.ProblemResponse;
 import co.com.pragma.api.filter.CorrelationIdFilter;
+import co.com.pragma.api.filter.RequestObservabilityFilter;
 import co.com.pragma.api.pagination.CursorCodec;
 import co.com.pragma.model.branches.Branch;
 import co.com.pragma.model.branchproducts.BranchProduct;
@@ -25,7 +26,10 @@ import co.com.pragma.usecase.renamebranchproduct.RenameBranchProductUseCase;
 import co.com.pragma.usecase.renamefranchise.RenameFranchiseUseCase;
 import co.com.pragma.usecase.updatebranchproductstock.UpdateBranchProductStockUseCase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -47,6 +51,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @ContextConfiguration(classes = {
@@ -54,10 +59,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         Handler.class,
         CursorCodec.class,
         CorrelationIdFilter.class,
+        RequestObservabilityFilter.class,
         GlobalExceptionHandler.class,
         JsonConfig.class
 })
 @WebFluxTest
+@ExtendWith(OutputCaptureExtension.class)
 class RouterRestTest {
     private static final UUID FRANCHISE_ID = UUID.randomUUID();
     private static final UUID BRANCH_ID = UUID.randomUUID();
@@ -243,7 +250,7 @@ class RouterRestTest {
     }
 
     @Test
-    void mapsNotFoundConflictAndInternalErrors() {
+    void mapsNotFoundConflictAndInternalErrors(CapturedOutput output) {
         when(createFranchiseUseCase.execute("Duplicate"))
                 .thenReturn(Mono.error(new DuplicateNameException("Franchise", "Duplicate")));
         when(createFranchiseUseCase.execute("Failure"))
@@ -279,6 +286,8 @@ class RouterRestTest {
                 .expectBody()
                 .jsonPath("$.type").isEqualTo("urn:franchise-api:problem:internal-error")
                 .jsonPath("$.detail").isEqualTo("An unexpected error occurred");
+
+        assertFalse(output.getAll().contains("database password"));
     }
 
     @Test
