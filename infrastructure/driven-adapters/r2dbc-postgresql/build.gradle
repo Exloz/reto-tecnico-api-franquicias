@@ -1,8 +1,13 @@
 dependencies {
     implementation project(':model')
+    implementation platform("io.github.resilience4j:resilience4j-bom:${resilience4jVersion}")
     implementation 'org.springframework:spring-context'
     implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
     implementation 'org.postgresql:r2dbc-postgresql'
+    implementation 'io.github.resilience4j:resilience4j-circuitbreaker'
+    implementation 'io.github.resilience4j:resilience4j-reactor'
+    implementation 'io.github.resilience4j:resilience4j-micrometer'
+    implementation 'io.micrometer:micrometer-core'
 
     testImplementation 'org.flywaydb:flyway-core'
     testImplementation 'org.flywaydb:flyway-database-postgresql'

@@ -4,6 +4,7 @@ import co.com.pragma.model.branches.gateways.BranchRepository;
 import co.com.pragma.model.branchproducts.gateways.BranchProductRepository;
 import co.com.pragma.model.branchproducts.gateways.TopStockQueryRepository;
 import co.com.pragma.model.franchises.gateways.FranchiseRepository;
+import co.com.pragma.r2dbc.resilience.R2dbcResilience;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,12 +46,16 @@ class PersistenceContextTest {
     @Autowired
     private Environment environment;
 
+    @Autowired
+    private R2dbcResilience resilience;
+
     @Test
     void wiresPersistenceBeans() throws ClassNotFoundException {
         assertNotNull(franchiseRepository);
         assertNotNull(branchRepository);
         assertNotNull(branchProductRepository);
         assertNotNull(topStockQueryRepository);
+        assertNotNull(resilience);
         assertTrue(applicationContext.getBeanNamesForType(
                 Class.forName("org.springframework.r2dbc.core.DatabaseClient")).length > 0);
         assertTrue(applicationContext.getBeanNamesForType(

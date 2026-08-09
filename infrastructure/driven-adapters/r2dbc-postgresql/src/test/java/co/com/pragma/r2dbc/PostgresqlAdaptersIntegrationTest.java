@@ -6,8 +6,13 @@ import co.com.pragma.model.branchproducts.TopStockCursor;
 import co.com.pragma.model.common.exception.DuplicateNameException;
 import co.com.pragma.model.common.exception.InvalidStockException;
 import co.com.pragma.model.common.exception.ResourceNotFoundException;
+import co.com.pragma.model.common.exception.ServiceUnavailableException;
 import co.com.pragma.model.common.exception.VersionConflictException;
 import co.com.pragma.model.franchises.Franchise;
+import co.com.pragma.r2dbc.config.R2dbcResilienceProperties;
+import co.com.pragma.r2dbc.resilience.R2dbcFailureClassifier;
+import co.com.pragma.r2dbc.resilience.R2dbcResilience;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.r2dbc.pool.ConnectionPool;
 import io.r2dbc.pool.ConnectionPoolConfiguration;
 import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
@@ -28,6 +33,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -80,10 +86,12 @@ class PostgresqlAdaptersIntegrationTest {
         databaseClient = DatabaseClient.create(connectionPool);
         TransactionalOperator transactionalOperator = TransactionalOperator.create(
                 new R2dbcTransactionManager(connectionPool));
-        franchiseAdapter = new FranchiseR2dbcAdapter(databaseClient, transactionalOperator);
-        branchAdapter = new BranchR2dbcAdapter(databaseClient, transactionalOperator);
-        productAdapter = new BranchProductR2dbcAdapter(databaseClient, transactionalOperator);
-        topStockAdapter = new TopStockR2dbcAdapter(databaseClient);
+        R2dbcResilience resilience = new R2dbcResilience(
+                resilienceProperties(), new R2dbcFailureClassifier(), new SimpleMeterRegistry());
+        franchiseAdapter = new FranchiseR2dbcAdapter(databaseClient, transactionalOperator, resilience);
+        branchAdapter = new BranchR2dbcAdapter(databaseClient, transactionalOperator, resilience);
+        productAdapter = new BranchProductR2dbcAdapter(databaseClient, transactionalOperator, resilience);
+        topStockAdapter = new TopStockR2dbcAdapter(databaseClient, resilience);
     }
 
     @AfterAll
@@ -102,6 +110,82 @@ class PostgresqlAdaptersIntegrationTest {
                         franchise.franchises
                     """);
         }
+    }
+
+    private static R2dbcResilienceProperties resilienceProperties() {
+        R2dbcResilienceProperties.CircuitBreaker circuitBreaker =
+                new R2dbcResilienceProperties.CircuitBreaker(
+                        50, 50, Duration.ofSeconds(2), 20, 10,
+                        Duration.ofSeconds(30), 3);
+        return new R2dbcResilienceProperties(
+                new R2dbcResilienceProperties.Policy(
+                        Duration.ofSeconds(3), Duration.ofSeconds(10), circuitBreaker),
+                new R2dbcResilienceProperties.Policy(
+                        Duration.ofSeconds(5), Duration.ofSeconds(15), circuitBreaker),
+                new R2dbcResilienceProperties.Retry(
+                        3, Duration.ofMillis(250), Duration.ofSeconds(2), 0.5));
+    }
+
+    private R2dbcResilience fastResilience() {
+        R2dbcResilienceProperties.CircuitBreaker circuitBreaker =
+                new R2dbcResilienceProperties.CircuitBreaker(
+                        50, 50, Duration.ofMillis(100), 10, 10,
+                        Duration.ofSeconds(1), 1);
+        R2dbcResilienceProperties properties = new R2dbcResilienceProperties(
+                new R2dbcResilienceProperties.Policy(
+                        Duration.ofMillis(500), Duration.ofMillis(800), circuitBreaker),
+                new R2dbcResilienceProperties.Policy(
+                        Duration.ofMillis(500), Duration.ofMillis(800), circuitBreaker),
+                new R2dbcResilienceProperties.Retry(
+                        1, Duration.ofMillis(1), Duration.ofMillis(1), 0));
+        return new R2dbcResilience(properties, new R2dbcFailureClassifier(), new SimpleMeterRegistry());
+    }
+
+    @Test
+    void timesOutSlowQueriesAndRecoversForFollowingReads() {
+        R2dbcResilience resilience = fastResilience();
+
+        Mono<Integer> recovered = resilience.read(() -> databaseClient.sql("SELECT pg_sleep(1)")
+                        .fetch()
+                        .rowsUpdated()
+                        .thenReturn(0))
+                .onErrorResume(ServiceUnavailableException.class, ignored ->
+                        Mono.delay(Duration.ofSeconds(1))
+                                .then(resilience.read(() -> databaseClient.sql("SELECT 1 AS value")
+                                        .map((row, metadata) -> row.get("value", Integer.class))
+                                        .one())));
+
+        StepVerifier.create(recovered)
+                .expectNext(1)
+                .verifyComplete();
+    }
+
+    @Test
+    void boundsConnectionPoolAcquisitionWait() {
+        ConnectionPool constrainedPool = new ConnectionPool(ConnectionPoolConfiguration.builder()
+                .connectionFactory(connectionPool)
+                .initialSize(0)
+                .maxSize(1)
+                .maxAcquireTime(Duration.ofMillis(50))
+                .build());
+        DatabaseClient constrainedClient = DatabaseClient.create(constrainedPool);
+        R2dbcResilience resilience = fastResilience();
+
+        Mono<Integer> saturated = Mono.usingWhen(
+                Mono.just(constrainedPool),
+                pool -> Mono.usingWhen(
+                        Mono.from(pool.create()),
+                        ignored -> resilience.read(() -> constrainedClient.sql("SELECT 1 AS value")
+                                .map((row, metadata) -> row.get("value", Integer.class))
+                                .one()),
+                        connection -> Mono.from(connection.close())),
+                ConnectionPool::disposeLater,
+                (pool, error) -> pool.disposeLater(),
+                ConnectionPool::disposeLater);
+
+        StepVerifier.create(saturated)
+                .expectError(ServiceUnavailableException.class)
+                .verify();
     }
 
     @Test

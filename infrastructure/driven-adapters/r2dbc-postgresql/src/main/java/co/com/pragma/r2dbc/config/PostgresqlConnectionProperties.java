@@ -17,5 +17,28 @@ public record PostgresqlConnectionProperties(
         String sslRootCert,
         Integer initialSize,
         Integer maxSize,
-        Duration maxIdleTime) {
+        Duration maxIdleTime,
+        Duration maxAcquireTime,
+        Duration maxLifeTime,
+        Duration connectTimeout) {
+
+    public PostgresqlConnectionProperties {
+        if (initialSize == null || initialSize < 0 || maxSize == null || maxSize < 1
+                || initialSize > maxSize) {
+            throw new IllegalArgumentException("R2DBC pool sizes are invalid");
+        }
+        requirePositive(maxIdleTime, "maxIdleTime");
+        requirePositive(maxAcquireTime, "maxAcquireTime");
+        requirePositive(maxLifeTime, "maxLifeTime");
+        requirePositive(connectTimeout, "connectTimeout");
+        if (connectTimeout.compareTo(maxAcquireTime) >= 0) {
+            throw new IllegalArgumentException("connectTimeout must be shorter than maxAcquireTime");
+        }
+    }
+
+    private static void requirePositive(Duration value, String name) {
+        if (value == null || value.isZero() || value.isNegative()) {
+            throw new IllegalArgumentException(name + " must be positive");
+        }
+    }
 }

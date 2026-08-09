@@ -125,5 +125,8 @@ class SwaggerDefaultProfileTest {
         assertTrue(metrics.contains("r2dbc_pool_acquired_connections"));
         assertTrue(metrics.contains("r2dbc_pool_idle_connections"));
         assertTrue(metrics.contains("r2dbc_pool_pending_connections"));
+        assertTrue(metrics.contains("resilience4j_circuitbreaker_state"));
+        assertTrue(metrics.contains("name=\"r2dbc-read\""));
+        assertTrue(metrics.contains("name=\"r2dbc-write\""));
     }
 }
