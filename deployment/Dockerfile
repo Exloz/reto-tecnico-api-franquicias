@@ -5,7 +5,12 @@ WORKDIR /workspace
 COPY . .
 
 RUN chmod +x gradlew \
-    && ./gradlew :app-service:bootJar --no-daemon --no-configuration-cache -x test
+    && if [ -f ApiFranchise.jar ]; then \
+        mkdir -p applications/app-service/build/libs \
+        && cp ApiFranchise.jar applications/app-service/build/libs/ApiFranchise.jar; \
+    else \
+        ./gradlew :app-service:bootJar --no-daemon --no-configuration-cache -x test; \
+    fi
 
 FROM eclipse-temurin:21-jre-alpine@sha256:3f08b13888f595cc49edabea7250ba69499ba25602b267da591720769400e08c
 
