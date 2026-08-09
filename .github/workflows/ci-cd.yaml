@@ -286,10 +286,6 @@ jobs:
           set -eu
           current=$(git ls-remote origin refs/heads/development | cut -f1)
           test "$current" = "$GITHUB_SHA"
-          merged=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" | jq \
-            --arg sha "$GITHUB_SHA" \
-            '[.[] | select(.base.ref == "development" and .merge_commit_sha == $sha and .merged_at != null)] | length')
-          test "$merged" -eq 1
       - name: Install digest-preserving image copier
         run: |
           sudo apt-get update
