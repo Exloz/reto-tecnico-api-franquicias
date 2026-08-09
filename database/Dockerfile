@@ -8,7 +8,7 @@ RUN apk add --no-cache curl \
         --output /aws-rds-global-bundle.pem \
     && printf '%s  %s\n' "$RDS_GLOBAL_BUNDLE_SHA256" /aws-rds-global-bundle.pem | sha256sum -c -
 
-FROM flyway/flyway:12.4.0
+FROM flyway/flyway:12.4.0@sha256:5be18367a9b3979a9f37234c371b80da457a448fb9577bd94d4bf24d923fafac
 
 RUN useradd --uid 10001 --home-dir /flyway --no-create-home --shell /usr/sbin/nologin flyway_runner \
     && mkdir -p /flyway/conf /flyway/.postgresql

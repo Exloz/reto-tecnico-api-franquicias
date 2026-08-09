@@ -32,7 +32,7 @@ Trivy ignores `AVD-AWS-0132` because the state bucket deliberately uses the sele
 
 ## Development
 
-`dev.tfvars` creates foundational resources but leaves the API-serving stage disabled. The ECS cluster, API IAM roles, and API log group remain available as foundation; the internal ALB, target group, listener, API Gateway, VPC Link, routes, stage, access-log group, API alarms, and API dashboard widgets are created only with `enable_api_service = true`. The dashboard and RDS alarms remain active before that stage.
+`dev.tfvars` keeps the API-serving stage active. The ECS cluster, API IAM roles, and API log group remain available when that stage is disabled; the internal ALB, target group, listener, API Gateway, VPC Link, routes, stage, access-log group, API alarms, and API dashboard widgets require `enable_api_service = true`. The dashboard and RDS alarms remain active before that stage.
 
 Development VPC Flow Logs capture rejected traffic only, and development ECR repositories retain the five most recent images. Production keeps all VPC traffic in Flow Logs and retains ten images.
 
@@ -43,19 +43,13 @@ terraform -chdir=infrastructure/environments/dev init
 terraform -chdir=infrastructure/environments/dev plan -var-file=dev.tfvars
 ```
 
-Initial database startup is deliberately sequential. Enable exactly one stage per apply, run the emitted task definition with its root `run_task_network_configuration`, confirm success, then disable that stage before enabling the next one:
+Initial database startup is deliberately sequential. Supplying immutable bootstrap and migration digests keeps both one-off task definitions available while the API remains active. Run bootstrap only for a new database, run Flyway before every API update, and require exit code `0` before continuing:
 
 ```hcl
-enable_bootstrap_task = true
 bootstrap_image_digest = "sha256:<64 hexadecimal characters>"
-
-# After bootstrap succeeds:
-enable_bootstrap_task = false
-enable_migration_task = true
 migration_image_digest = "sha256:<64 hexadecimal characters>"
 
 # After `migrate` and `validate` succeed:
-enable_migration_task = false
 enable_api_service = true
 api_image_digest = "sha256:<64 hexadecimal characters>"
 ```
@@ -64,19 +58,31 @@ The root composes each repository URL with its digest. Tags such as `latest` are
 
 If the account already has the GitHub Actions OIDC provider, set `create_github_oidc_provider = false` and provide `existing_github_oidc_provider_arn`.
 
-The centralized CI module remains disabled initially through dev `enable_ci_identity = false`. Activate it in this order:
+The centralized CI module starts disabled through dev `enable_ci_identity = false`. Activate it in this order:
 
 1. Apply bootstrap with `enable_ci_identity = true` as the bootstrap administrator. The bucket policy refers to future CI role ARNs through `aws:PrincipalArn` conditions, so those roles do not need to exist yet.
 2. Assume `franchise-terraform-apply` outside Terraform and apply the dev root with `enable_ci_identity = true` to create the single account-level OIDC provider and all five bounded CI roles.
-3. Keep GitHub environments `dev` and `prod` restricted to the protected `main` branch. Each environment can assume only its matching apply and deploy roles; pull requests can assume only the plan role.
 
-The bootstrap root creates separate runtime and CI permissions boundaries. Every project role must carry the matching boundary; both the human Terraform role and environment CI apply roles require the runtime boundary during `CreateRole`. CI cannot change or remove role boundaries. Environment deploy roles can pass only their own API and migration roles and can run only their own API and migration task families, never the database-bootstrap family.
+Keep dev `enable_ci_identity = true` after activation so subsequent plans and applies preserve the account-level provider and roles.
+3. Restrict GitHub environment `dev` to protected branch `development` and `prod` to protected branch `main`. Require approval from `Exloz` for `prod`. Each environment can assume only its matching apply and deploy roles; pull requests can assume only the plan role.
+
+The bootstrap root creates separate runtime and CI permissions boundaries. Every project role must carry the matching boundary; both the human Terraform role and environment CI apply roles require the runtime boundary during `CreateRole`. CI cannot change or remove role boundaries. Environment deploy roles can pass and run only their own API, migration and database-bootstrap roles and task families. The PROD deploy role can read deployed DEV images but can write only to PROD repositories.
 
 RDS generates and names the managed master credential secret (`rds!db-...`); that AWS-generated name supersedes any desired `/franchise/<environment>/database/master` path. The stable custom paths apply only to the migrator and application secrets. Their deletion recovery is configurable with `database_secret_recovery_window_in_days`; dev defaults to immediate deletion (`0`) and prod to 30 days.
 
 ## Production guard
 
-`prod.tfvars` keeps `enable_environment = false`. Enabling production requires all of `production_confirmation = "deploy-franchise-prod-127321794531-us-east-1"`, `expected_account_id = "127321794531"`, `expected_region = "us-east-1"`, and an explicit unique `final_snapshot_identifier`. A hard precondition also verifies the actual caller account and provider region. Production values are prepared for two availability zones, Multi-AZ RDS, deletion protection, 30-day backups/logs, and two-to-six API tasks.
+`prod.tfvars` enables the production foundation with the explicit confirmation string, account, region and final snapshot identifier. The API remains disabled until CI promotes tested DEV digests, bootstraps the new database, runs Flyway and performs the final API apply. A hard precondition verifies the actual caller account and provider region. Production uses two availability zones, Multi-AZ RDS, deletion protection, 30-day backups/logs, and two-to-six API tasks.
+
+## Delivery flow
+
+Pull requests to `development` must pass application quality, mutation, Terraform, TFLint and Trivy configuration checks. Pull requests to `main` additionally require ARM64 container security checks, are accepted only from `development`, and use merge commits so the promoted DEV commit remains auditable.
+
+CI validation runs only on pull requests. Branch policy, application quality and infrastructure validation run first; mutation analysis and Terraform plan then start, with ARM64 container validation added for pull requests to `main`. The final `CI gate` rejects any failed, cancelled or unexpectedly skipped required job. Protected branch pushes do not repeat these checks: they proceed directly to their environment delivery job after the pull request gate has passed.
+
+A push to `development` builds immutable `commit-<sha>` images, scans fixable CRITICAL vulnerabilities, runs Flyway, deploys DEV, executes readiness and functional smoke tests, and only then records `deployed-<sha>` tags. A push to `main` resolves the second parent of the approved merge, requires its validated DEV tags, copies the exact manifests to PROD without rebuilding, waits for the `prod` environment approval, runs bootstrap when required, runs Flyway, deploys ECS and records a deployment manifest.
+
+ECS circuit breaker handles unhealthy rollouts. If Terraform deployment or smoke validation fails, CI reapplies the previous API digest. Database migrations are forward-only and must remain compatible with both the previous and new API revision.
 
 ## Outputs
 

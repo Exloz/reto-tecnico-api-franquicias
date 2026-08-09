@@ -2,9 +2,8 @@ variable "name_prefix" {
   type = string
 }
 
-variable "github_repository" {
-  type    = string
-  default = "Exloz/reto-tecnico-api-franquicias"
+variable "github_oidc_subject_prefix" {
+  type = string
 }
 
 variable "create_oidc_provider" {
@@ -26,7 +25,8 @@ variable "environments" {
   type = map(object({
     state_key                  = string
     infrastructure_name_prefix = string
-    ecr_repository_arns        = list(string)
+    ecr_pull_repository_arns   = list(string)
+    ecr_push_repository_arns   = list(string)
     ecs_pass_role_arns         = list(string)
   }))
 

@@ -123,9 +123,15 @@ class PostgresqlAdaptersIntegrationTest {
                                 2,
                                 franchiseAdapter.create(firstFranchise),
                                 franchiseAdapter.create(secondFranchise))
-                        .materialize())
-                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getNormalizedName().equals("acme"))
-                .assertNext(signal -> assertInstanceOf(DuplicateNameException.class, signal.getThrowable()))
+                        .materialize()
+                        .collectList())
+                .assertNext(signals -> {
+                    assertEquals(2, signals.size());
+                    assertEquals(1, signals.stream().filter(s -> s.isOnNext()
+                            && s.get().getNormalizedName().equals("acme")).count());
+                    assertEquals(1, signals.stream().filter(s -> s.isOnError()
+                            && s.getThrowable() instanceof DuplicateNameException).count());
+                })
                 .verifyComplete();
 
         Franchise branchParent = franchise(UUID.randomUUID(), "Branch Parent", "branch parent");
@@ -135,9 +141,15 @@ class PostgresqlAdaptersIntegrationTest {
                                         2,
                                         branchAdapter.create(firstBranch),
                                         branchAdapter.create(secondBranch))
-                                .materialize()))
-                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getNormalizedName().equals("central"))
-                .assertNext(signal -> assertInstanceOf(DuplicateNameException.class, signal.getThrowable()))
+                                .materialize()
+                                .collectList()))
+                .assertNext(signals -> {
+                    assertEquals(2, signals.size());
+                    assertEquals(1, signals.stream().filter(s -> s.isOnNext()
+                            && s.get().getNormalizedName().equals("central")).count());
+                    assertEquals(1, signals.stream().filter(s -> s.isOnError()
+                            && s.getThrowable() instanceof DuplicateNameException).count());
+                })
                 .verifyComplete();
 
         Branch productParent = branch(UUID.randomUUID(), branchParent.getId(), "Product Parent", "product parent");
@@ -147,9 +159,15 @@ class PostgresqlAdaptersIntegrationTest {
                                         2,
                                         productAdapter.create(firstProduct),
                                         productAdapter.create(secondProduct))
-                                .materialize()))
-                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getNormalizedName().equals("phone"))
-                .assertNext(signal -> assertInstanceOf(DuplicateNameException.class, signal.getThrowable()))
+                                .materialize()
+                                .collectList()))
+                .assertNext(signals -> {
+                    assertEquals(2, signals.size());
+                    assertEquals(1, signals.stream().filter(s -> s.isOnNext()
+                            && s.get().getNormalizedName().equals("phone")).count());
+                    assertEquals(1, signals.stream().filter(s -> s.isOnError()
+                            && s.getThrowable() instanceof DuplicateNameException).count());
+                })
                 .verifyComplete();
     }
 
@@ -308,9 +326,16 @@ class PostgresqlAdaptersIntegrationTest {
                                 2,
                                 productAdapter.updateStock(firstUpdate, 0),
                                 productAdapter.updateStock(secondUpdate, 0)))
-                        .materialize())
-                .expectNextMatches(signal -> signal.isOnNext() && signal.get().getVersion() == 1)
-                .assertNext(signal -> assertInstanceOf(VersionConflictException.class, signal.getThrowable()))
+                        .materialize()
+                        .collectList())
+                .assertNext(signals -> {
+                    assertEquals(2, signals.size());
+                    long onSuccess = signals.stream().filter(s -> s.isOnNext() && s.get().getVersion() == 1).count();
+                    long onError = signals.stream().filter(s -> s.isOnError()
+                            && s.getThrowable() instanceof VersionConflictException).count();
+                    assertEquals(1, onSuccess);
+                    assertEquals(1, onError);
+                })
                 .verifyComplete();
     }
 
@@ -340,10 +365,17 @@ class PostgresqlAdaptersIntegrationTest {
                                 2,
                                 productAdapter.updateStock(update, 0).thenReturn("update"),
                                 productAdapter.softDelete(deletion, 0).thenReturn("delete")))
-                        .materialize())
-                .expectNextMatches(signal -> signal.isOnNext()
-                        && (signal.get().equals("update") || signal.get().equals("delete")))
-                .assertNext(signal -> assertInstanceOf(VersionConflictException.class, signal.getThrowable()))
+                        .materialize()
+                        .collectList())
+                .assertNext(signals -> {
+                    assertEquals(2, signals.size());
+                    long onSuccess = signals.stream().filter(s -> s.isOnNext()
+                            && (s.get().equals("update") || s.get().equals("delete"))).count();
+                    long onError = signals.stream().filter(s -> s.isOnError()
+                            && s.getThrowable() instanceof VersionConflictException).count();
+                    assertEquals(1, onSuccess);
+                    assertEquals(1, onError);
+                })
                 .verifyComplete();
     }
 

@@ -31,7 +31,8 @@ locals {
   deploy_task_definitions = {
     for environment, config in var.environments : environment => [
       "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-api:*",
-      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-migration:*"
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-migration:*",
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${config.infrastructure_name_prefix}-database-bootstrap:*"
     ]
   }
 }
@@ -61,7 +62,7 @@ data "aws_iam_policy_document" "plan_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:pull_request"]
+      values   = ["${var.github_oidc_subject_prefix}:pull_request"]
     }
   }
 }
@@ -86,7 +87,7 @@ data "aws_iam_policy_document" "environment_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:environment:${each.key}"]
+      values   = ["${var.github_oidc_subject_prefix}:environment:${each.key}"]
     }
   }
 }
@@ -121,6 +122,7 @@ data "aws_iam_policy_document" "provider_read" {
     actions = [
       "apigateway:GET",
       "application-autoscaling:Describe*",
+      "application-autoscaling:ListTagsForResource",
       "cloudwatch:Describe*",
       "cloudwatch:Get*",
       "cloudwatch:List*",
@@ -320,7 +322,9 @@ data "aws_iam_policy_document" "apply" {
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${each.value.infrastructure_name_prefix}-*",
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${each.value.infrastructure_name_prefix}-*"
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${each.value.infrastructure_name_prefix}-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.name_prefix}-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.name_prefix}-*"
     ]
   }
 
@@ -368,14 +372,24 @@ data "aws_iam_policy_document" "deploy" {
   statement {
     actions = [
       "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:DescribeImages",
+      "ecr:GetDownloadUrlForLayer"
+    ]
+    resources = each.value.ecr_pull_repository_arns
+  }
+
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchDeleteImage",
       "ecr:CompleteLayerUpload",
       "ecr:DescribeImages",
-      "ecr:GetDownloadUrlForLayer",
       "ecr:InitiateLayerUpload",
       "ecr:PutImage",
       "ecr:UploadLayerPart"
     ]
-    resources = each.value.ecr_repository_arns
+    resources = each.value.ecr_push_repository_arns
   }
 
   statement {
@@ -390,6 +404,11 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
+    actions   = ["ecs:DescribeTaskDefinition"]
+    resources = ["*"]
+  }
+
+  statement {
     actions   = ["ecs:RunTask"]
     resources = local.deploy_task_definitions[each.key]
 
@@ -398,11 +417,6 @@ data "aws_iam_policy_document" "deploy" {
       variable = "ecs:cluster"
       values   = [local.ecs_cluster_arns[each.key]]
     }
-  }
-
-  statement {
-    actions   = ["ecs:RegisterTaskDefinition"]
-    resources = ["*"]
   }
 
   statement {
