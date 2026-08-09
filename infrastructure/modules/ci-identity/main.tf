@@ -122,6 +122,7 @@ data "aws_iam_policy_document" "provider_read" {
     actions = [
       "apigateway:GET",
       "application-autoscaling:Describe*",
+      "application-autoscaling:ListTagsForResource",
       "cloudwatch:Describe*",
       "cloudwatch:Get*",
       "cloudwatch:List*",
