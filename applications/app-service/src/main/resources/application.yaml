@@ -3,6 +3,8 @@ server:
 spring:
   application:
     name: "ApiFranchise"
+  codec:
+    max-in-memory-size: "${API_MAX_IN_MEMORY_SIZE:64KB}"
   devtools:
     add-properties: false
   profiles:
@@ -18,13 +20,13 @@ api:
     timeout: "${API_DEADLINE_TIMEOUT:25s}"
 adapters:
   r2dbc:
-    host: "${DB_HOST:localhost}"
-    port: "${DB_PORT:5432}"
-    database: "${DB_NAME:franchise}"
+    host: "${DB_HOST}"
+    port: "${DB_PORT}"
+    database: "${DB_NAME}"
     schema: "franchise"
-    username: "${DB_USERNAME:franchise_app}"
-    password: "${DB_PASSWORD:franchise_app}"
-    ssl-mode: "${DB_SSL_MODE:DISABLE}"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+    ssl-mode: "${DB_SSL_MODE}"
     ssl-root-cert: "${DB_SSL_ROOT_CERT:}"
     initial-size: "${DB_POOL_INITIAL_SIZE:0}"
     max-size: "${DB_POOL_MAX_SIZE:15}"
@@ -60,9 +62,6 @@ adapters:
         min-backoff: "${DB_RETRY_MIN_BACKOFF:250ms}"
         max-backoff: "${DB_RETRY_MAX_BACKOFF:2s}"
         jitter: "${DB_RETRY_JITTER:0.5}"
-aws:
-  region: "us-east-1"
-  secretName: "my-secret"
 management:
   endpoints:
     web:
@@ -86,6 +85,10 @@ management:
         http.server.requests: "0.5,0.95,0.99"
       percentiles-histogram:
         http.server.requests: true
+        resilience.r2dbc.operation: true
+      slo:
+        http.server.requests: "100ms,250ms,500ms,1s,2s,5s"
+        resilience.r2dbc.operation: "2s,3s,5s,10s,15s"
 cors:
-  enabled: false
-  allowed-origins: "http://localhost:4200,http://localhost:8080"
+  enabled: "${CORS_ENABLED:false}"
+  allowed-origins: "${CORS_ALLOWED_ORIGINS:}"

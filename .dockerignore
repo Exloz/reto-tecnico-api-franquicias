@@ -14,10 +14,10 @@ docs.local
 *.tfvars.json
 *.pem
 **/.terraform
-infrastructure/bootstrap
-infrastructure/environments
-infrastructure/modules
-infrastructure/README.md
+deployment/terraform
+deployment/scripts
+deployment/README.md
+deployment/RUNBOOK.md
 override.tf
 override.tf.json
 *_override.tf

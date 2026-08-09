@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  workflow_dispatch:
   push:
     branches: [development, main]
   pull_request:
@@ -112,15 +111,15 @@ jobs:
       - name: Validate Terraform
         run: |
           set -eu
-          terraform fmt -check -recursive infrastructure
+          terraform fmt -check -recursive deployment/terraform
           for root in bootstrap environments/dev environments/prod; do
-            terraform -chdir="infrastructure/$root" init -backend=false -input=false
-            terraform -chdir="infrastructure/$root" validate
-            tflint --chdir="infrastructure/$root" --init
-            tflint --chdir="infrastructure/$root"
+            terraform -chdir="deployment/terraform/$root" init -backend=false -input=false
+            terraform -chdir="deployment/terraform/$root" validate
+            tflint --chdir="deployment/terraform/$root" --init
+            tflint --chdir="deployment/terraform/$root"
           done
       - name: Scan Terraform
-        run: trivy config --severity CRITICAL --ignorefile .trivyignore --exit-code 1 infrastructure
+        run: trivy config --severity CRITICAL --ignorefile .trivyignore --exit-code 1 deployment/terraform
 
   terraform-plan:
     name: Terraform plan
@@ -146,14 +145,14 @@ jobs:
           TARGET_ENVIRONMENT: ${{ github.base_ref == 'main' && 'prod' || 'dev' }}
         run: |
           set -eu
-          root="infrastructure/environments/$TARGET_ENVIRONMENT"
+          root="deployment/terraform/environments/$TARGET_ENVIRONMENT"
           terraform -chdir="$root" init -input=false
           current=$(terraform -chdir="$root" output -json release_digests 2>/dev/null | jq -e . 2>/dev/null || printf '{}')
           set --
           for component in api migrations bootstrap; do
             digest=$(printf '%s' "$current" | jq -r --arg component "$component" '.[$component] // empty')
             case "$component:$digest" in
-              api:sha256:*) set -- "$@" -var "api_image_digest=$digest" ;;
+              api:sha256:*) set -- "$@" -var enable_api_service=true -var "api_image_digest=$digest" ;;
               migrations:sha256:*) set -- "$@" -var "migration_image_digest=$digest" ;;
               bootstrap:sha256:*) set -- "$@" -var "bootstrap_image_digest=$digest" ;;
             esac
@@ -348,7 +347,7 @@ jobs:
       - name: Prepare one-off task definitions
         run: |
           set -eu
-          root=infrastructure/environments/dev
+          root=deployment/terraform/environments/dev
           terraform -chdir="$root" init -input=false
           set -- -var-file=dev.tfvars \
             -var "migration_image_digest=$MIGRATIONS_DIGEST" \
@@ -373,9 +372,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Bootstrap initial DEV database
         if: env.INITIAL_DEPLOYMENT == 'true'
-        run: infrastructure/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$BOOTSTRAP_TASK" "$BOOTSTRAP_NETWORK" database-bootstrap
+        run: deployment/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$BOOTSTRAP_TASK" "$BOOTSTRAP_NETWORK" database-bootstrap
       - name: Run DEV migrations
-        run: infrastructure/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$MIGRATION_TASK" "$MIGRATION_NETWORK" migration
+        run: deployment/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$MIGRATION_TASK" "$MIGRATION_NETWORK" migration
       - name: Assume DEV apply role for API deployment
         uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708
         with:
@@ -384,7 +383,7 @@ jobs:
       - name: Deploy and verify DEV API
         run: |
           set -u
-          root=infrastructure/environments/dev
+          root=deployment/terraform/environments/dev
           deploy() {
             terraform -chdir="$root" apply -auto-approve -input=false -lock-timeout=5m \
               -var-file=dev.tfvars \
@@ -399,7 +398,7 @@ jobs:
           status=$?
           if [ "$status" -eq 0 ]; then
             endpoint=$(terraform -chdir="$root" output -raw api_endpoint)
-            infrastructure/scripts/smoke-api.sh "$endpoint"
+            deployment/scripts/smoke-api.sh "$endpoint"
             status=$?
           fi
           set -e
@@ -424,9 +423,9 @@ jobs:
         run: |
           set -eu
           tag="deployed-$GITHUB_SHA"
-          infrastructure/scripts/copy-ecr-image.sh franchise-dev-api "$API_DIGEST" franchise-dev-api "$tag"
-          infrastructure/scripts/copy-ecr-image.sh franchise-dev-migrations "$MIGRATIONS_DIGEST" franchise-dev-migrations "$tag"
-          infrastructure/scripts/copy-ecr-image.sh franchise-dev-bootstrap "$BOOTSTRAP_DIGEST" franchise-dev-bootstrap "$tag"
+          deployment/scripts/copy-ecr-image.sh franchise-dev-api "$API_DIGEST" franchise-dev-api "$tag"
+          deployment/scripts/copy-ecr-image.sh franchise-dev-migrations "$MIGRATIONS_DIGEST" franchise-dev-migrations "$tag"
+          deployment/scripts/copy-ecr-image.sh franchise-dev-bootstrap "$BOOTSTRAP_DIGEST" franchise-dev-bootstrap "$tag"
           for repository in franchise-dev-api franchise-dev-migrations franchise-dev-bootstrap; do
             aws ecr batch-delete-image --repository-name "$repository" \
               --image-ids "imageTag=commit-$GITHUB_SHA" >/dev/null
@@ -466,7 +465,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          development_sha=$(infrastructure/scripts/resolve-promotion-source.sh "$GITHUB_SHA" "$GITHUB_REPOSITORY")
+          development_sha=$(deployment/scripts/resolve-promotion-source.sh "$GITHUB_SHA" "$GITHUB_REPOSITORY")
           printf 'DEVELOPMENT_SHA=%s\n' "$development_sha" >> "$GITHUB_ENV"
       - name: Assume PROD apply role
         uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708
@@ -476,7 +475,7 @@ jobs:
       - name: Ensure PROD foundation exists
         run: |
           set -eu
-          root=infrastructure/environments/prod
+          root=deployment/terraform/environments/prod
           terraform -chdir="$root" init -input=false
           if service=$(aws ecs describe-services --cluster franchise-prod-cluster --services franchise-prod-api --output json 2>/dev/null) && \
              [ "$(printf '%s' "$service" | jq -r '.services[0].status // empty')" = ACTIVE ]; then
@@ -515,9 +514,9 @@ jobs:
           for repository in franchise-dev-api franchise-dev-migrations franchise-dev-bootstrap; do
             wait_for_image "$repository"
           done
-          api_digest=$(infrastructure/scripts/copy-ecr-image.sh franchise-dev-api "$source_tag" franchise-prod-api "$destination_tag")
-          migrations_digest=$(infrastructure/scripts/copy-ecr-image.sh franchise-dev-migrations "$source_tag" franchise-prod-migrations "$destination_tag")
-          bootstrap_digest=$(infrastructure/scripts/copy-ecr-image.sh franchise-dev-bootstrap "$source_tag" franchise-prod-bootstrap "$destination_tag")
+          api_digest=$(deployment/scripts/copy-ecr-image.sh franchise-dev-api "$source_tag" franchise-prod-api "$destination_tag")
+          migrations_digest=$(deployment/scripts/copy-ecr-image.sh franchise-dev-migrations "$source_tag" franchise-prod-migrations "$destination_tag")
+          bootstrap_digest=$(deployment/scripts/copy-ecr-image.sh franchise-dev-bootstrap "$source_tag" franchise-prod-bootstrap "$destination_tag")
           printf 'API_DIGEST=%s\nMIGRATIONS_DIGEST=%s\nBOOTSTRAP_DIGEST=%s\n' \
             "$api_digest" "$migrations_digest" "$bootstrap_digest" >> "$GITHUB_ENV"
       - name: Assume PROD apply role for task definitions
@@ -528,7 +527,7 @@ jobs:
       - name: Prepare PROD database tasks
         run: |
           set -eu
-          root=infrastructure/environments/prod
+          root=deployment/terraform/environments/prod
           set -- -var-file=prod.tfvars \
             -var "migration_image_digest=$MIGRATIONS_DIGEST" \
             -var "bootstrap_image_digest=$BOOTSTRAP_DIGEST"
@@ -552,9 +551,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Bootstrap initial PROD database
         if: env.INITIAL_DEPLOYMENT == 'true'
-        run: infrastructure/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$BOOTSTRAP_TASK" "$BOOTSTRAP_NETWORK" database-bootstrap
+        run: deployment/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$BOOTSTRAP_TASK" "$BOOTSTRAP_NETWORK" database-bootstrap
       - name: Run PROD migrations
-        run: infrastructure/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$MIGRATION_TASK" "$MIGRATION_NETWORK" migration
+        run: deployment/scripts/run-ecs-task.sh "$ECS_CLUSTER" "$MIGRATION_TASK" "$MIGRATION_NETWORK" migration
       - name: Assume PROD apply role for API deployment
         uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708
         with:
@@ -563,7 +562,7 @@ jobs:
       - name: Deploy and verify PROD API
         run: |
           set -u
-          root=infrastructure/environments/prod
+          root=deployment/terraform/environments/prod
           deploy() {
             terraform -chdir="$root" apply -auto-approve -input=false -lock-timeout=5m \
               -var-file=prod.tfvars \
@@ -578,7 +577,7 @@ jobs:
           status=$?
           if [ "$status" -eq 0 ]; then
             endpoint=$(terraform -chdir="$root" output -raw api_endpoint)
-            infrastructure/scripts/smoke-api.sh "$endpoint"
+            deployment/scripts/smoke-api.sh "$endpoint"
             status=$?
           fi
           set -e
@@ -604,9 +603,9 @@ jobs:
         run: |
           set -eu
           tag="deployed-$GITHUB_SHA"
-          infrastructure/scripts/copy-ecr-image.sh franchise-prod-api "$API_DIGEST" franchise-prod-api "$tag"
-          infrastructure/scripts/copy-ecr-image.sh franchise-prod-migrations "$MIGRATIONS_DIGEST" franchise-prod-migrations "$tag"
-          infrastructure/scripts/copy-ecr-image.sh franchise-prod-bootstrap "$BOOTSTRAP_DIGEST" franchise-prod-bootstrap "$tag"
+          deployment/scripts/copy-ecr-image.sh franchise-prod-api "$API_DIGEST" franchise-prod-api "$tag"
+          deployment/scripts/copy-ecr-image.sh franchise-prod-migrations "$MIGRATIONS_DIGEST" franchise-prod-migrations "$tag"
+          deployment/scripts/copy-ecr-image.sh franchise-prod-bootstrap "$BOOTSTRAP_DIGEST" franchise-prod-bootstrap "$tag"
           for repository in franchise-prod-api franchise-prod-migrations franchise-prod-bootstrap; do
             aws ecr batch-delete-image --repository-name "$repository" \
               --image-ids "imageTag=source-$DEVELOPMENT_SHA" >/dev/null

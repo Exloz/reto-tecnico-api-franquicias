@@ -57,6 +57,60 @@ resource "aws_cloudwatch_log_metric_filter" "application_errors" {
   }
 }
 
+resource "aws_cloudwatch_log_metric_filter" "r2dbc_retries" {
+  count = var.api_observability_enabled ? 1 : 0
+
+  name           = "${var.name_prefix}-r2dbc-retries"
+  log_group_name = var.application_log_group_name
+  pattern        = "{ $.event = \"r2dbc.retry\" }"
+
+  metric_transformation {
+    name      = "R2dbcRetryCount"
+    namespace = local.application_metric_namespace
+    value     = "1"
+    dimensions = {
+      Operation = "$.operation"
+      Reason    = "$.reason"
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "r2dbc_unavailable" {
+  count = var.api_observability_enabled ? 1 : 0
+
+  name           = "${var.name_prefix}-r2dbc-unavailable"
+  log_group_name = var.application_log_group_name
+  pattern        = "{ $.event = \"r2dbc.unavailable\" }"
+
+  metric_transformation {
+    name      = "R2dbcUnavailableCount"
+    namespace = local.application_metric_namespace
+    value     = "1"
+    dimensions = {
+      Operation = "$.operation"
+      Reason    = "$.reason"
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "r2dbc_circuit_transitions" {
+  count = var.api_observability_enabled ? 1 : 0
+
+  name           = "${var.name_prefix}-r2dbc-circuit-transitions"
+  log_group_name = var.application_log_group_name
+  pattern        = "{ $.event = \"r2dbc.circuit.transition\" }"
+
+  metric_transformation {
+    name      = "R2dbcCircuitTransitionCount"
+    namespace = local.application_metric_namespace
+    value     = "1"
+    dimensions = {
+      Operation = "$.operation"
+      ToState   = "$.toState"
+    }
+  }
+}
+
 resource "aws_cloudwatch_log_metric_filter" "flyway_errors" {
   name           = "${var.name_prefix}-flyway-errors"
   log_group_name = var.migration_log_group_name
