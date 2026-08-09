@@ -163,6 +163,7 @@ jobs:
 
   containers:
     name: Container security
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
     needs: [branch-policy, application-quality, infrastructure]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -209,15 +210,21 @@ jobs:
           TERRAFORM_PLAN_RESULT: ${{ needs.terraform-plan.result }}
           CONTAINERS_RESULT: ${{ needs.containers.result }}
           TERRAFORM_PLAN_REQUIRED: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+          CONTAINERS_REQUIRED: ${{ github.ref == 'refs/heads/main' || github.base_ref == 'main' }}
         run: |
           set -eu
-          for result in "$BRANCH_POLICY_RESULT" "$APPLICATION_QUALITY_RESULT" "$INFRASTRUCTURE_RESULT" "$MUTATION_RESULT" "$CONTAINERS_RESULT"; do
+          for result in "$BRANCH_POLICY_RESULT" "$APPLICATION_QUALITY_RESULT" "$INFRASTRUCTURE_RESULT" "$MUTATION_RESULT"; do
             test "$result" = success
           done
           if [ "$TERRAFORM_PLAN_REQUIRED" = true ]; then
             test "$TERRAFORM_PLAN_RESULT" = success
           else
             test "$TERRAFORM_PLAN_RESULT" = skipped
+          fi
+          if [ "$CONTAINERS_REQUIRED" = true ]; then
+            test "$CONTAINERS_RESULT" = success
+          else
+            test "$CONTAINERS_RESULT" = skipped
           fi
 
   deploy-dev:

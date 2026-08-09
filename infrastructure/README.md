@@ -76,7 +76,7 @@ RDS generates and names the managed master credential secret (`rds!db-...`); tha
 
 ## Delivery flow
 
-Pull requests to `development` and `main` must pass application quality, mutation, Terraform, TFLint, Trivy and ARM64 container checks. Pull requests to `main` are accepted only from `development` and use merge commits so the promoted DEV commit remains auditable.
+Pull requests to `development` must pass application quality, mutation, Terraform, TFLint and Trivy configuration checks. Pull requests to `main` additionally require ARM64 container security checks, are accepted only from `development`, and use merge commits so the promoted DEV commit remains auditable.
 
 Branch policy, application quality and infrastructure validation run first. Mutation analysis, Terraform plan and ARM64 container validation start only after those fast gates pass; the final `CI gate` rejects any failed, cancelled or unexpectedly skipped required job.
 
