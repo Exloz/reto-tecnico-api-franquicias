@@ -78,7 +78,7 @@ RDS generates and names the managed master credential secret (`rds!db-...`); tha
 
 Pull requests to `development` must pass application quality, mutation, Terraform, TFLint and Trivy configuration checks. Pull requests to `main` additionally require ARM64 container security checks, are accepted only from `development`, and use merge commits so the promoted DEV commit remains auditable.
 
-Branch policy, application quality and infrastructure validation run first. Mutation analysis, Terraform plan and ARM64 container validation start only after those fast gates pass; the final `CI gate` rejects any failed, cancelled or unexpectedly skipped required job.
+CI validation runs only on pull requests. Branch policy, application quality and infrastructure validation run first; mutation analysis and Terraform plan then start, with ARM64 container validation added for pull requests to `main`. The final `CI gate` rejects any failed, cancelled or unexpectedly skipped required job. Protected branch pushes do not repeat these checks: they proceed directly to their environment delivery job after the pull request gate has passed.
 
 A push to `development` builds immutable `commit-<sha>` images, scans fixable CRITICAL vulnerabilities, runs Flyway, deploys DEV, executes readiness and functional smoke tests, and only then records `deployed-<sha>` tags. A push to `main` resolves the second parent of the approved merge, requires its validated DEV tags, copies the exact manifests to PROD without rebuilding, waits for the `prod` environment approval, runs bootstrap when required, runs Flyway, deploys ECS and records a deployment manifest.
 

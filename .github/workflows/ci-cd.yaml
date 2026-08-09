@@ -23,6 +23,7 @@ env:
 jobs:
   branch-policy:
     name: Branch policy
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -44,6 +45,7 @@ jobs:
 
   application-quality:
     name: Application quality
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -66,6 +68,7 @@ jobs:
 
   mutation:
     name: Mutation testing
+    if: github.event_name == 'pull_request'
     needs: [branch-policy, application-quality, infrastructure]
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -91,6 +94,7 @@ jobs:
 
   infrastructure:
     name: Infrastructure validation
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -163,7 +167,7 @@ jobs:
 
   containers:
     name: Container security
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     needs: [branch-policy, application-quality, infrastructure]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -196,7 +200,7 @@ jobs:
 
   ci-gate:
     name: CI gate
-    if: always()
+    if: always() && github.event_name == 'pull_request'
     needs: [branch-policy, application-quality, infrastructure, mutation, terraform-plan, containers]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -210,7 +214,7 @@ jobs:
           TERRAFORM_PLAN_RESULT: ${{ needs.terraform-plan.result }}
           CONTAINERS_RESULT: ${{ needs.containers.result }}
           TERRAFORM_PLAN_REQUIRED: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-          CONTAINERS_REQUIRED: ${{ github.ref == 'refs/heads/main' || github.base_ref == 'main' }}
+          CONTAINERS_REQUIRED: ${{ github.base_ref == 'main' }}
         run: |
           set -eu
           for result in "$BRANCH_POLICY_RESULT" "$APPLICATION_QUALITY_RESULT" "$INFRASTRUCTURE_RESULT" "$MUTATION_RESULT"; do
@@ -230,7 +234,6 @@ jobs:
   deploy-dev:
     name: Deploy DEV
     if: github.event_name == 'push' && github.ref == 'refs/heads/development'
-    needs: ci-gate
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
@@ -406,7 +409,6 @@ jobs:
   promote-prod:
     name: Promote PROD
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: ci-gate
     runs-on: ubuntu-latest
     timeout-minutes: 90
     concurrency:
