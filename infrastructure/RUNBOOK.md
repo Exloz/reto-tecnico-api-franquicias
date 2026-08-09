@@ -1,6 +1,6 @@
-# Runbook AWS DEV
+# Runbook AWS
 
-Este documento explica la arquitectura desplegada, cómo probarla, cómo inspeccionar PostgreSQL y cómo pausar, destruir o reconstruir el ambiente `dev`.
+Este documento explica la arquitectura desplegada, cómo probarla, cómo inspeccionar PostgreSQL y cómo operar los ambientes `dev` y `prod`.
 
 ## Estado actual
 
@@ -386,6 +386,20 @@ Esto no elimina el bootstrap: bucket S3 de estado, rol Terraform y permissions b
 
 No uses `aws rds stop-db-instance` como estrategia permanente: AWS vuelve a iniciar una instancia detenida después de siete días y la operación introduce estado fuera de Terraform.
 
+## Entrega automatizada
+
+El workflow `CI` ejecuta validación de aplicación, mutaciones, Terraform, TFLint, Trivy y construcción ARM64 en pull requests y pushes protegidos.
+
+- Los feature branches abren pull request hacia `development`.
+- Un push aprobado a `development` publica y despliega DEV automáticamente.
+- Solo un merge commit del pull request `development` hacia `main` puede iniciar PROD.
+- GitHub Environment `prod` exige aprobación de `Exloz`.
+- PROD copia los manifiestos `deployed-<development-sha>` desde ECR DEV; no reconstruye imágenes.
+- Flyway debe terminar con exit code `0` antes de actualizar ECS.
+- Un fallo de rollout o smoke reaplica el digest previo de la API; Flyway no se revierte.
+
+Las task definitions de bootstrap y migración permanecen disponibles cuando sus digests están configurados. Esto permite ejecutar Flyway durante una entrega sin destruir ALB, API Gateway ni el servicio API existente.
+
 ## Reconstruir DEV desde cero
 
 Después de un destroy total, ECR y sus imágenes ya no existen. La reconstrucción debe respetar este orden:
@@ -399,9 +413,7 @@ Aplica la foundation sin workloads:
 ```sh
 terraform -chdir=infrastructure/environments/dev apply \
   -var-file=dev.tfvars \
-  -var enable_api_service=false \
-  -var enable_bootstrap_task=false \
-  -var enable_migration_task=false
+  -var enable_api_service=false
 ```
 
 Construye y publica imágenes ARM64:
@@ -458,14 +470,12 @@ printf 'api=%s\nmigrations=%s\nbootstrap=%s\n' \
 
 Actualiza los tres digests en `infrastructure/environments/dev/dev.tfvars`. No continúes usando solo overrides: el archivo debe conservar la imagen deseada para evitar drift futuro.
 
-Habilita solo bootstrap:
+Registra las definiciones one-off con los digests publicados:
 
 ```sh
 terraform -chdir=infrastructure/environments/dev apply \
   -var-file=dev.tfvars \
-  -var enable_api_service=false \
-  -var enable_bootstrap_task=true \
-  -var enable_migration_task=false
+  -var enable_api_service=false
 ```
 
 Ejecuta bootstrap:
@@ -499,14 +509,12 @@ aws logs tail /ecs/franchise-dev-database-bootstrap --since 15m
 
 El exit code debe ser `0`.
 
-Habilita solo Flyway:
+Ejecuta Flyway después del bootstrap:
 
 ```sh
 terraform -chdir=infrastructure/environments/dev apply \
   -var-file=dev.tfvars \
-  -var enable_api_service=false \
-  -var enable_bootstrap_task=false \
-  -var enable_migration_task=true
+  -var enable_api_service=false
 
 TASK_DEFINITION="$(terraform -chdir=infrastructure/environments/dev output -raw migration_task_definition_arn)"
 NETWORK="$(terraform -chdir=infrastructure/environments/dev output -json migration_run_task_network_configuration)"
@@ -536,14 +544,12 @@ aws logs tail /ecs/franchise-dev-migration --since 15m
 
 El exit code debe ser `0` y Flyway debe reportar `migrate` y `validate` exitosos.
 
-Habilita la API y retira la task definition de migración:
+Habilita la API después de la migración; las definiciones one-off se conservan:
 
 ```sh
 terraform -chdir=infrastructure/environments/dev apply \
   -var-file=dev.tfvars \
-  -var enable_api_service=true \
-  -var enable_bootstrap_task=false \
-  -var enable_migration_task=false
+  -var enable_api_service=true
 
 aws ecs wait services-stable \
   --cluster franchise-dev-cluster \
