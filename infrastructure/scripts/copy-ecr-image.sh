@@ -11,6 +11,7 @@ source_reference=$2
 destination_repository=$3
 destination_tag=$4
 auth_file=$(mktemp)
+printf '{"auths":{}}\n' > "$auth_file"
 
 cleanup() {
     rm -f "$auth_file"

@@ -322,7 +322,9 @@ data "aws_iam_policy_document" "apply" {
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${each.value.infrastructure_name_prefix}-*",
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${each.value.infrastructure_name_prefix}-*"
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${each.value.infrastructure_name_prefix}-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.name_prefix}-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.name_prefix}-*"
     ]
   }
 
@@ -403,7 +405,7 @@ data "aws_iam_policy_document" "deploy" {
 
   statement {
     actions   = ["ecs:DescribeTaskDefinition"]
-    resources = local.deploy_task_definitions[each.key]
+    resources = ["*"]
   }
 
   statement {
