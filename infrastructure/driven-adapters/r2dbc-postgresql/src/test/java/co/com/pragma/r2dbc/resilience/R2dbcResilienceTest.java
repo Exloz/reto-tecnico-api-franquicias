@@ -42,6 +42,11 @@ class R2dbcResilienceTest {
                 .tag("reason", "serialization")
                 .counter()
                 .count());
+        assertEquals(1, meterRegistry.get("resilience.r2dbc.operation")
+                .tag("operation", "read")
+                .tag("outcome", "success")
+                .timer()
+                .count());
     }
 
     @Test
@@ -167,6 +172,11 @@ class R2dbcResilienceTest {
         assertNotNull(meterRegistry.find("resilience4j.circuitbreaker.state")
                 .tag("name", "r2dbc-read")
                 .gauge());
+        assertEquals(1, meterRegistry.get("resilience.r2dbc.operation")
+                .tag("operation", "read")
+                .tag("outcome", "success")
+                .timer()
+                .count());
     }
 
     @Test

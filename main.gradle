@@ -3,7 +3,6 @@ def mutationThresholds = [
         usecase: 85,
         'reactive-web': 70,
         'r2dbc-postgresql': 70,
-        metrics: 60,
         'app-service': 60
 ]
 
@@ -36,7 +35,6 @@ subprojects {
     }
 
     dependencies {
-		implementation platform('software.amazon.awssdk:bom:2.46.8')
         implementation 'io.projectreactor:reactor-core'
         implementation 'io.projectreactor.addons:reactor-extra'
 

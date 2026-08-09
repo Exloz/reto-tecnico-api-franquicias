@@ -7,7 +7,7 @@ Este documento explica la arquitectura desplegada, cómo probarla, cómo inspecc
 - Cuenta: `127321794531`.
 - Región: `us-east-1`.
 - Endpoint público: `https://sxhuakqh88.execute-api.us-east-1.amazonaws.com`.
-- Terraform root: `infrastructure/environments/dev`.
+- Terraform root: `deployment/terraform/environments/dev`.
 - Estado remoto: `s3://franchise-127321794531-terraform-state/dev/infrastructure.tfstate`.
 - ECS: `franchise-dev-cluster` / `franchise-dev-api`.
 - RDS: `franchise-dev-database`.
@@ -66,7 +66,7 @@ Las credenciales son temporales. Abre una terminal nueva o repite el proceso cua
 Inicializa Terraform:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev init
+terraform -chdir=deployment/terraform/environments/dev init
 ```
 
 ## Revisar el ambiente
@@ -74,7 +74,7 @@ terraform -chdir=infrastructure/environments/dev init
 Obtén la URL actual:
 
 ```sh
-API_URL="$(terraform -chdir=infrastructure/environments/dev output -raw api_endpoint)"
+API_URL="$(terraform -chdir=deployment/terraform/environments/dev output -raw api_endpoint)"
 printf '%s\n' "$API_URL"
 ```
 
@@ -193,7 +193,7 @@ aws cloudwatch list-metrics \
 Comprueba que Terraform no tenga drift:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev plan \
+terraform -chdir=deployment/terraform/environments/dev plan \
   -detailed-exitcode \
   -var-file=dev.tfvars
 ```
@@ -207,7 +207,7 @@ El script `load-tests/franchise-api.js` crea datos reales en RDS. Empieza siempr
 Con k6 instalado localmente:
 
 ```sh
-API_URL="$(terraform -chdir=infrastructure/environments/dev output -raw api_endpoint)"
+API_URL="$(terraform -chdir=deployment/terraform/environments/dev output -raw api_endpoint)"
 
 BASE_URL="$API_URL" VUS=1 DURATION=10s \
   k6 run load-tests/franchise-api.js
@@ -216,7 +216,7 @@ BASE_URL="$API_URL" VUS=1 DURATION=10s \
 Con Docker:
 
 ```sh
-API_URL="$(terraform -chdir=infrastructure/environments/dev output -raw api_endpoint)"
+API_URL="$(terraform -chdir=deployment/terraform/environments/dev output -raw api_endpoint)"
 
 docker run --rm \
   -e BASE_URL="$API_URL" \
@@ -230,7 +230,7 @@ docker run --rm \
 Con el servicio Compose del repositorio:
 
 ```sh
-API_URL="$(terraform -chdir=infrastructure/environments/dev output -raw api_endpoint)"
+API_URL="$(terraform -chdir=deployment/terraform/environments/dev output -raw api_endpoint)"
 
 docker compose run --rm --no-deps \
   -e BASE_URL="$API_URL" \
@@ -273,28 +273,28 @@ El helper registra una tarea Fargate temporal en la subred privada, obtiene dent
 Lista las tablas:
 
 ```sh
-infrastructure/scripts/db-query-readonly.sh \
+deployment/scripts/db-query-readonly.sh \
   "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = 'franchise' ORDER BY table_name;"
 ```
 
 Lista columnas:
 
 ```sh
-infrastructure/scripts/db-query-readonly.sh \
+deployment/scripts/db-query-readonly.sh \
   "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'franchise' ORDER BY table_name, ordinal_position;"
 ```
 
 Cuenta filas:
 
 ```sh
-infrastructure/scripts/db-query-readonly.sh \
+deployment/scripts/db-query-readonly.sh \
   "SELECT 'franchises' AS table_name, count(*) FROM franchise.franchises UNION ALL SELECT 'branches', count(*) FROM franchise.branches UNION ALL SELECT 'branch_products', count(*) FROM franchise.branch_products;"
 ```
 
 Muestra las últimas franquicias sin recuperar secretos localmente:
 
 ```sh
-infrastructure/scripts/db-query-readonly.sh \
+deployment/scripts/db-query-readonly.sh \
   "SELECT id, name, version, created_at FROM franchise.franchises ORDER BY created_at DESC LIMIT 20;"
 ```
 
@@ -307,19 +307,19 @@ Esta opción elimina ECS Service, ALB, API Gateway, VPC Link, autoescalado y ala
 Genera y revisa el plan:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev plan \
+terraform -chdir=deployment/terraform/environments/dev plan \
   -var-file=dev.tfvars \
   -var enable_api_service=false \
   -out=dev-pause.tfplan
 
-terraform -chdir=infrastructure/environments/dev show dev-pause.tfplan
+terraform -chdir=deployment/terraform/environments/dev show dev-pause.tfplan
 ```
 
 Aplica la pausa:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev apply dev-pause.tfplan
-rm infrastructure/environments/dev/dev-pause.tfplan
+terraform -chdir=deployment/terraform/environments/dev apply dev-pause.tfplan
+rm deployment/terraform/environments/dev/dev-pause.tfplan
 ```
 
 `dev.tfvars` sigue declarando `enable_api_service = true`. Esto hace que la siguiente aplicación normal sea el mecanismo de reactivación.
@@ -327,18 +327,18 @@ rm infrastructure/environments/dev/dev-pause.tfplan
 ## Reactivar la API
 
 ```sh
-terraform -chdir=infrastructure/environments/dev plan \
+terraform -chdir=deployment/terraform/environments/dev plan \
   -var-file=dev.tfvars \
   -out=dev-resume.tfplan
 
-terraform -chdir=infrastructure/environments/dev apply dev-resume.tfplan
-rm infrastructure/environments/dev/dev-resume.tfplan
+terraform -chdir=deployment/terraform/environments/dev apply dev-resume.tfplan
+rm deployment/terraform/environments/dev/dev-resume.tfplan
 
 aws ecs wait services-stable \
   --cluster franchise-dev-cluster \
   --services franchise-dev-api
 
-API_URL="$(terraform -chdir=infrastructure/environments/dev output -raw api_endpoint)"
+API_URL="$(terraform -chdir=deployment/terraform/environments/dev output -raw api_endpoint)"
 curl --fail-with-body --silent --show-error \
   "$API_URL/actuator/health/readiness"
 ```
@@ -367,19 +367,19 @@ El snapshot conserva datos y sigue generando costo de almacenamiento.
 Revisa el destroy plan:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev plan \
+terraform -chdir=deployment/terraform/environments/dev plan \
   -destroy \
   -var-file=dev.tfvars \
   -out=dev-destroy.tfplan
 
-terraform -chdir=infrastructure/environments/dev show dev-destroy.tfplan
+terraform -chdir=deployment/terraform/environments/dev show dev-destroy.tfplan
 ```
 
 Destruye DEV:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev apply dev-destroy.tfplan
-rm infrastructure/environments/dev/dev-destroy.tfplan
+terraform -chdir=deployment/terraform/environments/dev apply dev-destroy.tfplan
+rm deployment/terraform/environments/dev/dev-destroy.tfplan
 ```
 
 Esto no elimina el bootstrap: bucket S3 de estado, rol Terraform y permissions boundaries. IAM no tiene costo y el bucket vacío/versionado tiene un costo mínimo. El bucket está protegido con `prevent_destroy` porque contiene su propio estado y no debe destruirse como operación diaria.
@@ -388,9 +388,9 @@ No uses `aws rds stop-db-instance` como estrategia permanente: AWS vuelve a inic
 
 ## Entrega automatizada
 
-El workflow `CI` ejecuta validación de aplicación, mutaciones, Terraform, TFLint, Trivy y construcción ARM64 en pull requests y pushes protegidos.
+El workflow `CI` ejecuta validación de aplicación, Terraform, TFLint, Trivy y construcción ARM64 en pull requests. Los pushes protegidos ejecutan únicamente la entrega del ambiente correspondiente. Mutation testing permanece explícitamente deshabilitado.
 
-Las validaciones de rama, aplicación e infraestructura preceden a los jobs costosos. PIT, plan y construcción de contenedores no comienzan si falla uno de esos gates; `CI gate` agrega los resultados requeridos antes de permitir un despliegue.
+Las validaciones de rama, aplicación e infraestructura preceden a los jobs costosos. El plan y la construcción de contenedores no comienzan si falla uno de esos gates; `CI gate` agrega los resultados requeridos antes de permitir un despliegue.
 
 - Los feature branches abren pull request hacia `development`.
 - Un push aprobado a `development` publica y despliega DEV automáticamente.
@@ -413,7 +413,7 @@ foundation -> imágenes -> bootstrap de roles -> Flyway -> API
 Aplica la foundation sin workloads:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev apply \
+terraform -chdir=deployment/terraform/environments/dev apply \
   -var-file=dev.tfvars \
   -var enable_api_service=false
 ```
@@ -470,12 +470,12 @@ printf 'api=%s\nmigrations=%s\nbootstrap=%s\n' \
   "$API_DIGEST" "$MIGRATION_DIGEST" "$BOOTSTRAP_DIGEST"
 ```
 
-Actualiza los tres digests en `infrastructure/environments/dev/dev.tfvars`. No continúes usando solo overrides: el archivo debe conservar la imagen deseada para evitar drift futuro.
+Actualiza los tres digests en `deployment/terraform/environments/dev/dev.tfvars`. No continúes usando solo overrides: el archivo debe conservar la imagen deseada para evitar drift futuro.
 
 Registra las definiciones one-off con los digests publicados:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev apply \
+terraform -chdir=deployment/terraform/environments/dev apply \
   -var-file=dev.tfvars \
   -var enable_api_service=false
 ```
@@ -483,8 +483,8 @@ terraform -chdir=infrastructure/environments/dev apply \
 Ejecuta bootstrap:
 
 ```sh
-TASK_DEFINITION="$(terraform -chdir=infrastructure/environments/dev output -raw bootstrap_task_definition_arn)"
-NETWORK="$(terraform -chdir=infrastructure/environments/dev output -json bootstrap_run_task_network_configuration)"
+TASK_DEFINITION="$(terraform -chdir=deployment/terraform/environments/dev output -raw bootstrap_task_definition_arn)"
+NETWORK="$(terraform -chdir=deployment/terraform/environments/dev output -json bootstrap_run_task_network_configuration)"
 NETWORK_CONFIGURATION="$(printf '%s' "$NETWORK" | jq -r \
   '"awsvpcConfiguration={subnets=[" + (.subnets | join(",")) + "],securityGroups=[" + (.security_groups | join(",")) + "],assignPublicIp=" + .assign_public_ip + "}"')"
 
@@ -514,12 +514,12 @@ El exit code debe ser `0`.
 Ejecuta Flyway después del bootstrap:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev apply \
+terraform -chdir=deployment/terraform/environments/dev apply \
   -var-file=dev.tfvars \
   -var enable_api_service=false
 
-TASK_DEFINITION="$(terraform -chdir=infrastructure/environments/dev output -raw migration_task_definition_arn)"
-NETWORK="$(terraform -chdir=infrastructure/environments/dev output -json migration_run_task_network_configuration)"
+TASK_DEFINITION="$(terraform -chdir=deployment/terraform/environments/dev output -raw migration_task_definition_arn)"
+NETWORK="$(terraform -chdir=deployment/terraform/environments/dev output -json migration_run_task_network_configuration)"
 NETWORK_CONFIGURATION="$(printf '%s' "$NETWORK" | jq -r \
   '"awsvpcConfiguration={subnets=[" + (.subnets | join(",")) + "],securityGroups=[" + (.security_groups | join(",")) + "],assignPublicIp=" + .assign_public_ip + "}"')"
 
@@ -549,7 +549,7 @@ El exit code debe ser `0` y Flyway debe reportar `migrate` y `validate` exitosos
 Habilita la API después de la migración; las definiciones one-off se conservan:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev apply \
+terraform -chdir=deployment/terraform/environments/dev apply \
   -var-file=dev.tfvars \
   -var enable_api_service=true
 
@@ -557,7 +557,7 @@ aws ecs wait services-stable \
   --cluster franchise-dev-cluster \
   --services franchise-dev-api
 
-API_URL="$(terraform -chdir=infrastructure/environments/dev output -raw api_endpoint)"
+API_URL="$(terraform -chdir=deployment/terraform/environments/dev output -raw api_endpoint)"
 curl --fail-with-body --silent --show-error \
   "$API_URL/actuator/health/readiness"
 ```
@@ -565,7 +565,7 @@ curl --fail-with-body --silent --show-error \
 Finaliza con un plan sin overrides. Debe indicar cero cambios:
 
 ```sh
-terraform -chdir=infrastructure/environments/dev plan \
+terraform -chdir=deployment/terraform/environments/dev plan \
   -detailed-exitcode \
   -var-file=dev.tfvars
 ```
